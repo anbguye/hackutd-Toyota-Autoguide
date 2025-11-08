@@ -43,4 +43,4 @@ workflow_status:
   solutioning-gate-check: "docs/implementation-readiness-report.md"
 
   # Phase 3: Implementation
-  sprint-planning: "required"
+  sprint-planning: "docs/sprint-status.yaml"

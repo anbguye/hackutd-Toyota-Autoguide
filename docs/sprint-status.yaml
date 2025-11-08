@@ -1,0 +1,102 @@
+# Sprint Status Tracking
+# This tracks progress through Phase 3 (Implementation) development
+# Update statuses as stories move through the workflow
+
+# generated: 2025-11-08
+# project: hackutd
+# project_key: hackutd
+# tracking_system: file-system
+# story_location: "{project-root}/docs/stories"
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic exists but tech context not created
+#   - contexted: Epic tech context created (prerequisite for story drafting)
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - drafted: Story file created in stories folder
+#   - ready-for-dev: Draft approved and story context created
+#   - in-progress: Developer actively working on implementation
+#   - review: Under SM review (via code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - completed: Retrospective has been done
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epics should be 'contexted' before stories can be 'drafted'
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically drafts next story after previous one is 'done'
+# - Dev moves story to 'review', SM reviews, then Dev moves to 'done'
+
+generated: "2025-11-08"
+project: "hackutd"
+project_key: "hackutd"
+tracking_system: "file-system"
+story_location: "{project-root}/docs/stories"
+
+development_status:
+  # ============================================
+  # EPIC 1: Foundation & Infrastructure
+  # ============================================
+  epic-1: backlog
+
+  1-1-initialize-v0-nextjs-project-and-configure-supabase: backlog
+  1-2-create-supabase-database-schema-and-tables: backlog
+  1-3-seed-database-with-toyota-car-data: backlog
+  epic-1-retrospective: optional
+
+  # ============================================
+  # EPIC 2: User Onboarding & Preferences
+  # ============================================
+  epic-2: backlog
+
+  2-1-implement-email-password-authentication: backlog
+  2-2-implement-google-oauth-integration: backlog
+  2-3-implement-preference-quiz-interface: backlog
+  2-4-create-user-profile-view-and-preference-management: backlog
+  epic-2-retrospective: optional
+
+  # ============================================
+  # EPIC 3: Agent-Led Discovery
+  # ============================================
+  epic-3: backlog
+
+  3-1-set-up-nemotron-api-integration-and-tool-call-handler: backlog
+  3-2-implement-chat-interface-component: backlog
+  3-3-display-agent-car-suggestions-with-reasoning: backlog
+  3-4-enable-multi-turn-conversation-and-preference-refinement: backlog
+  epic-3-retrospective: optional
+
+  # ============================================
+  # EPIC 4: Car Search & Comparison
+  # ============================================
+  epic-4: backlog
+
+  4-1-implement-car-search-and-filter-interface: backlog
+  4-2-create-car-detail-page-with-full-specifications: backlog
+  4-3-implement-side-by-side-car-comparison: backlog
+  epic-4-retrospective: optional
+
+  # ============================================
+  # EPIC 5: Cost Transparency
+  # ============================================
+  epic-5: backlog
+
+  5-1-implement-insurance-quote-calculator: backlog
+  5-2-implement-finance-payment-calculator: backlog
+  5-3-display-total-cost-of-ownership-summary: backlog
+  epic-5-retrospective: optional
+
+  # ============================================
+  # EPIC 6: Test Drive Scheduling
+  # ============================================
+  epic-6: backlog
+
+  6-1-implement-test-drive-booking-form: backlog
+  6-2-send-booking-confirmation-and-manage-booking-list: backlog
+  epic-6-retrospective: optional
