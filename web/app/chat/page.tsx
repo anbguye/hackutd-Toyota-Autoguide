@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { Send, User, Bot, Sparkles, Loader2 } from "lucide-react";
@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { CarRecommendations } from "@/components/chat/CarRecommendations";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { supabase } from "@/lib/supabase/client";
 
 type DisplayMessage = {
   id?: string;
@@ -29,10 +30,43 @@ const initialAgentMessage: DisplayMessage = {
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
+  const authTokenRef = useRef<string | null>(null);
+
+  // Get auth token from Supabase session
+  useEffect(() => {
+    const getAuthToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        authTokenRef.current = session.access_token;
+      }
+    };
+    getAuthToken();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      authTokenRef.current = session?.access_token ?? null;
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const { messages: chatMessages, sendMessage, status, error } = useChat({
     id: "toyota-agent-chat",
     transport: new DefaultChatTransport({
       api: "/api/chat",
+      fetch: (url, options) => {
+        const headers = new Headers(options?.headers);
+        if (authTokenRef.current) {
+          headers.set("Authorization", `Bearer ${authTokenRef.current}`);
+        }
+        return fetch(url, {
+          ...options,
+          headers,
+          credentials: "include",
+        });
+      },
     }),
   });
 

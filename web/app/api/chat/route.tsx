@@ -2,6 +2,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { convertToModelMessages, stepCountIs, streamText, type UIDataTypes, type UIMessage } from "ai";
 import { createSsrClient } from "@/lib/supabase/server";
 import { tools, type ChatTools } from "./tools";
+import { use } from "react";
 
 export type ChatMessage = UIMessage<never, UIDataTypes, ChatTools>;
 
@@ -38,7 +39,7 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt += JSON.stringify(preferences, null, 2);
     systemPrompt += "\n\n";
     systemPrompt +=
-      "Use these preferences as defaults when searching for cars. When searching, prefer filtering by msrp price, but fallback to invoice if msrp is unavailable.\n\n";
+      "All budget values are in cents. Use these preferences as defaults when searching for cars. When searching, prefer filtering by msrp price, but fallback to invoice if msrp is unavailable.\n\n";
     systemPrompt +=
       "IMPORTANT WORKFLOW FOR SHOWING CARS:\n";
     systemPrompt +=
@@ -129,8 +130,28 @@ export async function POST(req: Request) {
   try {
     const supabase = await createSsrClient();
     const {
-      data: { user },
+      data: { user: cookieUser },
+      error: cookieUserError,
     } = await supabase.auth.getUser();
+
+    let user = cookieUser;
+
+    // If no user from cookies, try Authorization header
+    if (!user) {
+      const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization");
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+
+      if (token) {
+        const {
+          data: { user: headerUser },
+        } = await supabase.auth.getUser(token);
+
+        if (headerUser) {
+          user = headerUser;
+        }
+      }
+    }
+
     if (user) {
       preferences = await getUserPreferences(user.id);
     }
