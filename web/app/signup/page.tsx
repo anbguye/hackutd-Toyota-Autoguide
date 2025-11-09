@@ -46,11 +46,10 @@ export default function SignupPage() {
   }
 
   const handleGoogleSignup = async () => {
-    const origin = typeof window !== "undefined" ? window.location.origin : ""
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=/quiz`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=/quiz`,
       },
     })
   }
