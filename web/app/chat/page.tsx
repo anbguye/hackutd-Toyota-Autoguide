@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
-import { Send, User, Bot, Sparkles, Loader2 } from "lucide-react";
+import { Send, User, Bot, Sparkles, Loader2, Phone, Calendar, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,8 +11,10 @@ import { RequireAuth } from "@/components/auth/RequireAuth";
 import { CarRecommendations } from "@/components/chat/CarRecommendations";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { VoiceButton } from "@/components/chat/VoiceButton";
+import { AgentWorkflow } from "@/components/chat/AgentWorkflow";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { supabase } from "@/lib/supabase/client";
+import Link from "next/link";
 import { SpeechRecognitionManager } from "@/lib/voice/speechRecognition";
 import { SpeechSynthesisManager } from "@/lib/voice/speechSynthesis";
 import { SilenceDetector } from "@/lib/voice/silenceDetector";
@@ -139,12 +141,14 @@ export default function ChatPage() {
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [agentWorkflowSteps, setAgentWorkflowSteps] = useState<Array<{ name: string; description: string; status: "pending" | "active" | "completed" }> | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionManager | null>(null);
   const speechSynthesisRef = useRef<SpeechSynthesisManager | null>(null);
   const silenceDetectorRef = useRef<SilenceDetector | null>(null);
   const lastSpokenMessageIdRef = useRef<string | null>(null);
   const voiceMessageBufferRef = useRef<string>("");
   const streamingTextRef = useRef<string>("");
+  const lastProcessedMessageIdRef = useRef<string | null>(null);
 
   // Get auth token from Supabase session and load preferences
   // Initialize voice managers
@@ -532,24 +536,122 @@ export default function ChatPage() {
     }
   }, [displayMessages, isVoiceMode, isStreaming]);
 
+  // Update agent workflow steps based on tool states in messages
+  useEffect(() => {
+    const lastMessage = displayMessages[displayMessages.length - 1];
+    if (!lastMessage) {
+      return;
+    }
+
+    // Skip if we've already processed this message
+    if (lastMessage.id === lastProcessedMessageIdRef.current) {
+      return;
+    }
+
+    // Only process agent messages with tool parts
+    if (lastMessage.role === "user" || !lastMessage.parts) {
+      // Clear workflow if no active tool calls
+      if (agentWorkflowSteps && lastMessage.role === "user") {
+        setAgentWorkflowSteps(null);
+        lastProcessedMessageIdRef.current = lastMessage.id;
+      }
+      return;
+    }
+
+    const parts = lastMessage.parts;
+    
+    // Check for searchToyotaTrims tool
+    const searchPart = parts.find((p: any) => p.type === "tool-searchToyotaTrims");
+    if (searchPart) {
+      if (searchPart.state === "input-available") {
+        setAgentWorkflowSteps([
+          { name: "Intent Agent", description: "Understanding your request", status: "completed" },
+          { name: "Vehicle Agent", description: "Searching Toyota database", status: "active" },
+          { name: "Finance Agent", description: "Calculating financing options", status: "pending" },
+          { name: "Report Agent", description: "Preparing recommendations", status: "pending" },
+        ]);
+        lastProcessedMessageIdRef.current = lastMessage.id;
+        return;
+      } else if (searchPart.state === "output-available") {
+        setAgentWorkflowSteps([
+          { name: "Intent Agent", description: "Understanding your request", status: "completed" },
+          { name: "Vehicle Agent", description: "Searching Toyota database", status: "completed" },
+          { name: "Finance Agent", description: "Calculating financing options", status: "active" },
+          { name: "Report Agent", description: "Preparing recommendations", status: "pending" },
+        ]);
+        lastProcessedMessageIdRef.current = lastMessage.id;
+        return;
+      }
+    }
+
+    // Check for displayCarRecommendations tool
+    const displayPart = parts.find((p: any) => p.type === "tool-displayCarRecommendations");
+    if (displayPart) {
+      if (displayPart.state === "input-available") {
+        setAgentWorkflowSteps([
+          { name: "Intent Agent", description: "Understanding your request", status: "completed" },
+          { name: "Vehicle Agent", description: "Searching Toyota database", status: "completed" },
+          { name: "Finance Agent", description: "Calculating financing options", status: "completed" },
+          { name: "Report Agent", description: "Preparing recommendations", status: "active" },
+        ]);
+        lastProcessedMessageIdRef.current = lastMessage.id;
+        return;
+      } else if (displayPart.state === "output-available") {
+        setAgentWorkflowSteps([
+          { name: "Intent Agent", description: "Understanding your request", status: "completed" },
+          { name: "Vehicle Agent", description: "Searching Toyota database", status: "completed" },
+          { name: "Finance Agent", description: "Calculating financing options", status: "completed" },
+          { name: "Report Agent", description: "Preparing recommendations", status: "completed" },
+        ]);
+        lastProcessedMessageIdRef.current = lastMessage.id;
+        // Clear after delay
+        setTimeout(() => setAgentWorkflowSteps(null), 3000);
+        return;
+      }
+    }
+  }, [displayMessages]);
 
   return (
     <RequireAuth>
       <div className="flex min-h-full flex-col bg-background text-foreground">
         <div className="flex-1">
           <div className="toyota-container flex h-full max-w-4xl flex-col py-6">
-            <div className="mb-8 rounded-3xl border border-border/70 bg-card/70 px-6 py-5 backdrop-blur">
-              <div className="flex items-start gap-4">
-                <div className="rounded-full bg-primary/10 p-3 text-primary">
-                  <Sparkles className="h-5 w-5" />
+            <div className="mb-6 space-y-4">
+              <div className="rounded-3xl border border-border/70 bg-card/70 px-6 py-5 backdrop-blur">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-full bg-primary/10 p-3 text-primary">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                      Toyota agent live
+                    </p>
+                    <h2 className="text-lg font-semibold text-secondary">
+                      Ask anything about Toyota pricing, trims, or ownership. Responses adapt to your quiz and browsing.
+                    </h2>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                    Toyota agent live
-                  </p>
-                  <h2 className="text-lg font-semibold text-secondary">
-                    Ask anything about Toyota pricing, trims, or ownership. Responses adapt to your quiz and browsing.
-                  </h2>
+              </div>
+              
+              {/* Retell Voice Call Section */}
+              <div className="rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 px-6 py-5 backdrop-blur">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-full bg-primary/20 p-3 text-primary">
+                    <Phone className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
+                      Prefer to talk?
+                    </p>
+                    <div className="space-y-1">
+                      <h3 className="text-base font-semibold text-secondary">
+                        Chat or CALL our agent
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Call <a href="tel:1-800-TOYOTA" className="font-semibold text-primary hover:underline">1-800-TOYOTA</a> to speak with our voice agent powered by Retell. Ask about vehicles, get financing options, or schedule a test drive—all through natural conversation.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -557,6 +659,12 @@ export default function ChatPage() {
             <div className="relative flex-1 overflow-hidden rounded-4xl border border-border/70 bg-card/60 backdrop-blur">
               <ScrollArea className="h-full p-8">
                 <div className="space-y-6">
+                  {/* Persistent Agent Workflow Display */}
+                  {agentWorkflowSteps && (
+                    <div className="mb-4">
+                      <AgentWorkflow steps={agentWorkflowSteps} />
+                    </div>
+                  )}
                   {loadingPreferences && (
                     <div className="flex gap-4 justify-start items-center">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -662,6 +770,69 @@ export default function ChatPage() {
                                               The assistant needs to first search for cars, then select items from the results to display.
                                             </p>
                                           )}
+                                        </div>
+                                      );
+                                    default:
+                                      return null;
+                                  }
+                                }
+
+                                // Handle scheduleTestDrive tool
+                                if (part.type === "tool-scheduleTestDrive") {
+                                  switch (part.state) {
+                                    case "input-available":
+                                      return (
+                                        <div key={partIndex} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          <span>Scheduling test drive...</span>
+                                        </div>
+                                      );
+                                    case "output-available":
+                                      const output = part.output as any;
+                                      if (output?.success) {
+                                        return (
+                                          <div key={partIndex} className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+                                            <div className="flex items-start gap-3">
+                                              <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                                              <div className="flex-1 space-y-2">
+                                                <p className="font-semibold text-secondary">Test drive scheduled!</p>
+                                                {output.details && (
+                                                  <div className="space-y-1 text-xs text-muted-foreground">
+                                                    <p><span className="font-medium">Vehicle:</span> {output.details.vehicle}</p>
+                                                    <p><span className="font-medium">Date:</span> {output.details.date}</p>
+                                                    <p><span className="font-medium">Time:</span> {output.details.time}</p>
+                                                    <p><span className="font-medium">Location:</span> {output.details.location}</p>
+                                                  </div>
+                                                )}
+                                                {output.link && (
+                                                  <Link href={output.link} className="inline-flex items-center gap-2 mt-3 text-xs font-semibold text-primary hover:underline">
+                                                    <Calendar className="h-4 w-4" />
+                                                    View test drive details
+                                                  </Link>
+                                                )}
+                                                <p className="text-xs text-muted-foreground mt-2">You'll receive a confirmation email shortly.</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <div key={partIndex} className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+                                            <p className="font-semibold">Error scheduling test drive</p>
+                                            <p className="mt-1 text-xs">{output?.error || "Unknown error"}</p>
+                                            {output?.link && (
+                                              <Link href={output.link} className="mt-2 inline-block text-xs underline">
+                                                Sign in to continue
+                                              </Link>
+                                            )}
+                                          </div>
+                                        );
+                                      }
+                                    case "output-error":
+                                      return (
+                                        <div key={partIndex} className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+                                          <p className="font-semibold">Error scheduling test drive</p>
+                                          <p className="mt-1 text-xs">{part.errorText || "Unknown error"}</p>
                                         </div>
                                       );
                                     default:

@@ -4,10 +4,12 @@ import { searchToyotaTrims } from "@/lib/cars/searchToyotaTrims";
 import {
   searchToyotaTrimsInputSchema,
   displayCarRecommendationsInputSchema,
+  scheduleTestDriveInputSchema,
 } from "@/lib/cars/schemas";
 import type { CarCard } from "@/lib/cars/types";
 import { sendEmailHtmlInputSchema } from "@/lib/email/schemas";
 import { sendEmailHtml } from "@/lib/email/resend";
+import { createSsrClient } from "@/lib/supabase/server";
 
 const searchToyotaTrimsTool = tool({
   description:
@@ -114,11 +116,160 @@ const estimateFinanceTool = tool({
   },
 });
 
+const scheduleTestDriveTool = tool({
+  description:
+    "Schedule a test drive for a vehicle. Use this when the user wants to schedule a test drive or shows interest in test driving a specific vehicle. You should proactively suggest scheduling test drives after showing vehicle recommendations. Requires trim_id, preferred date/time, and optionally location and contact info.",
+  inputSchema: scheduleTestDriveInputSchema,
+  execute: async (input) => {
+    console.log("[scheduleTestDrive] Tool called with:", JSON.stringify(input, null, 2));
+    
+    try {
+      // Get user info from Supabase
+      const supabase = await createSsrClient();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        return {
+          success: false,
+          error: "User authentication required. Please sign in to schedule a test drive.",
+          link: "/login",
+        };
+      }
+
+      // Parse date/time
+      let bookingDateTime: Date;
+      const now = new Date();
+      
+      // Handle relative dates
+      if (input.preferredDate.toLowerCase().includes("tomorrow")) {
+        bookingDateTime = new Date(now);
+        bookingDateTime.setDate(bookingDateTime.getDate() + 1);
+      } else if (input.preferredDate.toLowerCase().includes("next week")) {
+        bookingDateTime = new Date(now);
+        bookingDateTime.setDate(bookingDateTime.getDate() + 7);
+      } else {
+        // Try to parse ISO date
+        bookingDateTime = new Date(input.preferredDate);
+        if (isNaN(bookingDateTime.getTime())) {
+          // Default to tomorrow if parsing fails
+          bookingDateTime = new Date(now);
+          bookingDateTime.setDate(bookingDateTime.getDate() + 1);
+        }
+      }
+
+      // Set time
+      if (input.preferredTime) {
+        if (input.preferredTime.includes(":")) {
+          // HH:MM format
+          const [hours, minutes] = input.preferredTime.split(":").map(Number);
+          bookingDateTime.setHours(hours || 10, minutes || 0, 0, 0);
+        } else if (input.preferredTime.toLowerCase().includes("morning")) {
+          bookingDateTime.setHours(10, 0, 0, 0);
+        } else if (input.preferredTime.toLowerCase().includes("afternoon")) {
+          bookingDateTime.setHours(14, 0, 0, 0);
+        } else if (input.preferredTime.toLowerCase().includes("evening")) {
+          bookingDateTime.setHours(17, 0, 0, 0);
+        } else {
+          bookingDateTime.setHours(10, 0, 0, 0); // Default to 10 AM
+        }
+      } else {
+        bookingDateTime.setHours(10, 0, 0, 0); // Default to 10 AM
+      }
+
+      // Get vehicle details
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from("toyota_trim_specs")
+        .select("trim_id, model_year, make, model, trim")
+        .eq("trim_id", input.trimId)
+        .maybeSingle();
+
+      if (vehicleError || !vehicleData) {
+        return {
+          success: false,
+          error: "Vehicle not found. Please select a valid vehicle.",
+        };
+      }
+
+      // Get user profile for contact info
+      const { data: profileData } = await supabase
+        .from("user_preferences")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const contactName = input.contactName || user.user_metadata?.full_name || profileData?.contact_name || user.email?.split("@")[0] || "Customer";
+      const contactEmail = input.contactEmail || user.email || "";
+      const contactPhone = input.contactPhone || user.user_metadata?.phone || profileData?.contact_phone || "";
+
+      if (!contactEmail) {
+        return {
+          success: false,
+          error: "Email address is required. Please update your profile or provide an email.",
+        };
+      }
+
+      // Call bookings API
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      const response = await fetch(`${baseUrl}/api/bookings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          contactName,
+          contactEmail,
+          contactPhone: contactPhone || "000-000-0000", // Fallback if no phone
+          preferredLocation: input.location || "downtown",
+          bookingDateTime: bookingDateTime.toISOString(),
+          vehicle: {
+            trimId: input.trimId,
+            make: vehicleData.make,
+            model: vehicleData.model,
+            year: vehicleData.model_year,
+            trim: vehicleData.trim,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to schedule test drive" }));
+        return {
+          success: false,
+          error: errorData.message || "Failed to schedule test drive. Please try again.",
+        };
+      }
+
+      const bookingData = await response.json();
+      
+      return {
+        success: true,
+        message: `Test drive scheduled successfully for ${bookingDateTime.toLocaleDateString()} at ${bookingDateTime.toLocaleTimeString()}`,
+        bookingId: bookingData.booking?.id,
+        link: `/test-drive?trim_id=${input.trimId}&year=${vehicleData.model_year}&make=${vehicleData.make}&model=${vehicleData.model}&trim=${vehicleData.trim}`,
+        details: {
+          date: bookingDateTime.toLocaleDateString(),
+          time: bookingDateTime.toLocaleTimeString(),
+          location: input.location || "downtown",
+          vehicle: `${vehicleData.model_year} ${vehicleData.make} ${vehicleData.model} ${vehicleData.trim}`,
+        },
+      };
+    } catch (error) {
+      console.error("[scheduleTestDrive] Error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred while scheduling test drive",
+      };
+    }
+  },
+});
+
 export const tools = {
   searchToyotaTrims: searchToyotaTrimsTool,
   displayCarRecommendations: displayCarRecommendationsTool,
   sendEmailHtml: sendEmailHtmlTool,
   estimateFinance: estimateFinanceTool,
+  scheduleTestDrive: scheduleTestDriveTool,
 } satisfies ToolSet;
 
 export type ChatTools = InferUITools<typeof tools>;

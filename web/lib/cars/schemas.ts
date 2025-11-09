@@ -133,3 +133,35 @@ export const displayCarRecommendationsInputSchema = z.object({
     ),
 });
 
+export const scheduleTestDriveInputSchema = z.object({
+  trimId: z
+    .number()
+    .int()
+    .positive()
+    .describe("The trim_id of the vehicle to schedule a test drive for (required)"),
+  preferredDate: z
+    .string()
+    .describe("Preferred date in ISO format (YYYY-MM-DD) or relative format like 'tomorrow', 'next week'"),
+  preferredTime: z
+    .string()
+    .optional()
+    .describe("Preferred time in HH:MM format (24-hour) or relative like 'morning', 'afternoon', 'evening'"),
+  location: z
+    .string()
+    .optional()
+    .describe("Preferred dealership location (downtown, north, or south)"),
+  contactName: z
+    .string()
+    .optional()
+    .describe("Contact name (will use user's profile if not provided)"),
+  contactEmail: z
+    .string()
+    .email()
+    .optional()
+    .describe("Contact email (will use user's profile if not provided)"),
+  contactPhone: z
+    .string()
+    .optional()
+    .describe("Contact phone number (will use user's profile if not provided)"),
+});
+

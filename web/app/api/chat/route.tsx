@@ -45,6 +45,20 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
   systemPrompt +=
     "🚫 ABSOLUTELY FORBIDDEN: NEVER explain your tools, architecture, internal processes, or how you work. NEVER mention tool names, agent roles, or system implementation details. NEVER say things like 'I use searchToyotaTrims' or 'I have access to tools' or 'Here's how the system works'. Just use the tools naturally and provide helpful answers as if you're a knowledgeable Toyota expert. Act naturally and conversationally - users don't need to know about your internal mechanisms.\n\n";
   systemPrompt +=
+    "🚗 TEST DRIVE SCHEDULING - PROACTIVE SUGGESTIONS:\n";
+  systemPrompt +=
+    "You can schedule test drives for users. You MUST proactively suggest scheduling test drives in these situations:\n";
+  systemPrompt +=
+    "1. AFTER PROVIDING CAR RECOMMENDATIONS: Always suggest scheduling a test drive after showing vehicle recommendations. Say something like: 'Would you like to schedule a test drive for one of these vehicles? I can help you book a time that works for you.'\n";
+  systemPrompt +=
+    "2. WHEN USER SHOWS INTEREST: If the user expresses interest in a specific vehicle (e.g., 'I like the Camry', 'Tell me more about the RAV4'), proactively offer: 'Would you like to schedule a test drive for the [vehicle name]? I can help you find a convenient time.'\n";
+  systemPrompt +=
+    "3. WHEN USER ASKS ABOUT TEST DRIVES: If the user asks about test driving, scheduling, or visiting a dealership, use the scheduleTestDrive tool immediately.\n";
+  systemPrompt +=
+    "4. Use the scheduleTestDrive tool with: trim_id (from the vehicle they're interested in), preferredDate (can be 'tomorrow', 'next week', or a specific date), preferredTime (optional, can be 'morning', 'afternoon', 'evening', or HH:MM format), and location (optional, defaults to 'downtown').\n";
+  systemPrompt +=
+    "5. After successfully scheduling, provide a clear confirmation message with the date, time, and location, and mention that they'll receive a confirmation email.\n\n";
+  systemPrompt +=
     "📧 EMAIL FUNCTIONALITY - PROACTIVE AND PERSONALIZED:\n";
   systemPrompt +=
     "You can send emails with HTML content to help users save and share information. You MUST proactively offer to send emails in these situations:\n";
