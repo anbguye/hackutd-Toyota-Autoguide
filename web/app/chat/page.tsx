@@ -565,12 +565,17 @@ export default function ChatPage() {
                   )}
                   {displayMessages.map((message, i) => {
                     const isUser = message.role === "user";
+                    const isLastMessage = i === displayMessages.length - 1;
+                    const showBotIcon = !isUser && (message.content || message.parts?.length) && !(isLastMessage && isWaitingForBotResponse);
                     return (
                       <div key={message.id ?? i} className={`flex gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
-                        {!isUser && (
+                        {showBotIcon && (
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                             <Bot className="h-5 w-5" />
                           </div>
+                        )}
+                        {!isUser && !showBotIcon && (
+                          <div className="flex h-10 w-10 shrink-0" />
                         )}
                         <div className={`flex max-w-[82%] flex-col gap-3 ${isUser ? "items-end" : "items-start"}`}>
                           {message.content && (

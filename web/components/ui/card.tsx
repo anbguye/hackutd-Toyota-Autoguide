@@ -1,15 +1,38 @@
+"use client";
+
 import * as React from 'react'
+import { motion } from 'framer-motion'
 
 import { cn } from '@/lib/utils'
+import { liftCard } from '@/lib/motion/variants'
+import { useReducedMotion } from '@/lib/motion/useReducedMotion'
 
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
+  const prefersReducedMotion = useReducedMotion()
+
+  if (prefersReducedMotion) {
+    return (
+      <div
+        data-slot="card"
+        className={cn(
+          'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
+          className,
+        )}
+        {...props}
+      />
+    )
+  }
+
   return (
-    <div
+    <motion.div
       data-slot="card"
       className={cn(
         'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
         className,
       )}
+      variants={liftCard}
+      initial="rest"
+      whileHover="hover"
       {...props}
     />
   )

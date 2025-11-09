@@ -5,16 +5,21 @@ import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { motion } from "framer-motion"
 
 import type { Car } from "@/lib/supabase/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { scanLine, rowHover } from "@/lib/motion/variants"
+import { useReducedMotion } from "@/lib/motion/useReducedMotion"
+import { cn } from "@/lib/utils"
 
 export function CompareClient() {
   const searchParams = useSearchParams()
   const [selectedCars, setSelectedCars] = useState<Car[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const prefersReducedMotion = useReducedMotion()
 
   useEffect(() => {
     const compareParam = searchParams.get("compare")
@@ -66,11 +71,25 @@ export function CompareClient() {
           </p>
         </div>
       ) : selectedCars.length > 0 && (
-        <div className="overflow-hidden rounded-[2.5rem] border border-border/70 bg-card/80 shadow-[0_36px_80px_-64px_rgba(15,20,26,0.85)]">
+        <motion.div
+          className="overflow-hidden rounded-[2.5rem] border border-border/70 bg-card/80 shadow-[0_36px_80px_-64px_rgba(15,20,26,0.85)] backdrop-blur-md border-white/10"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        >
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border/60">
               <thead>
-                <tr className="bg-background/60 backdrop-blur">
+                <tr className="bg-background/60 backdrop-blur relative">
+                  {/* Scan line animation */}
+                  {!prefersReducedMotion && (
+                    <motion.div
+                      className="absolute top-0 left-0 h-[2px] w-full bg-gradient-to-r from-transparent via-primary to-transparent z-10"
+                      variants={scanLine}
+                      initial="hidden"
+                      animate="show"
+                    />
+                  )}
                   <th className="px-6 py-5 text-left text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                     Feature
                   </th>
@@ -83,7 +102,7 @@ export function CompareClient() {
                               src={car.image || "/placeholder.svg"}
                               alt={car.name}
                               fill
-                              className="object-cover"
+                              className="object-contain"
                               sizes="(min-width: 1280px) 25vw, (min-width: 768px) 45vw, 90vw"
                             />
                           </div>
@@ -157,7 +176,7 @@ export function CompareClient() {
               </tbody>
             </table>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {selectedCars.length > 0 && (
@@ -197,8 +216,30 @@ type CompareRowProps = {
 }
 
 function CompareRow({ label, children, subtle }: CompareRowProps) {
+  const prefersReducedMotion = useReducedMotion()
+
+  if (prefersReducedMotion) {
+    return (
+      <tr className={subtle ? "bg-background/55" : undefined}>
+        <td className="px-6 py-5 text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+          {label}
+        </td>
+        {children.map((child, index) => (
+          <td key={index} className="px-6 py-5 text-center">
+            {child}
+          </td>
+        ))}
+      </tr>
+    )
+  }
+
   return (
-    <tr className={subtle ? "bg-background/55" : undefined}>
+    <motion.tr
+      className={cn("relative", subtle ? "bg-background/55" : undefined)}
+      variants={rowHover}
+      initial="rest"
+      whileHover="hover"
+    >
       <td className="px-6 py-5 text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
         {label}
       </td>
@@ -207,6 +248,6 @@ function CompareRow({ label, children, subtle }: CompareRowProps) {
           {child}
         </td>
       ))}
-    </tr>
+    </motion.tr>
   )
 }

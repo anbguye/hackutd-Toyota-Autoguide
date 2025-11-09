@@ -89,14 +89,24 @@ export default function BrowseClient({ initialItems, initialMeta, initialParams 
   const debouncedSearch = useDebouncedValue(searchInput, 350)
   const controllerRef = useRef<AbortController | null>(null)
   const isFirstFetch = useRef(true)
+  const hasMounted = useRef(false)
 
+  // Only sync initialItems on first mount
+  // After that, all updates come from client-side fetchCars to avoid race conditions
   useEffect(() => {
-    setCars(initialItems)
-  }, [initialItems])
-
-  useEffect(() => {
-    setMeta(initialMeta)
-  }, [initialMeta])
+    if (!hasMounted.current) {
+      hasMounted.current = true
+      setCars(initialItems)
+      setMeta(initialMeta)
+      return
+    }
+    // After mount, only sync if we have no cars (fallback for direct URL navigation)
+    // This prevents overwriting client-side fetch results during pagination
+    if (cars.length === 0 && initialItems.length > 0 && !isLoading) {
+      setCars(initialItems)
+      setMeta(initialMeta)
+    }
+  }, [initialItems, initialMeta, cars.length, isLoading])
 
   useEffect(() => {
     localStorage.setItem("selectedCarsForComparison", JSON.stringify(selectedCarIds))
@@ -149,8 +159,7 @@ export default function BrowseClient({ initialItems, initialMeta, initialParams 
 
       setIsLoading(true)
       setError(null)
-
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+      // Don't clear cars here - keep previous results visible while loading
 
       try {
         const response = await fetch(`/api/cars?${queryString}`, {
@@ -170,6 +179,10 @@ export default function BrowseClient({ initialItems, initialMeta, initialParams 
           totalPages?: number
         }
 
+        // Only update URL after we have the data to avoid race conditions
+        router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+
+        // Update state with fetched data
         setCars(data.items ?? [])
         setMeta({
           page: data.page ?? state.page,
@@ -183,6 +196,7 @@ export default function BrowseClient({ initialItems, initialMeta, initialParams 
         }
         console.error("[BrowseClient] Failed to fetch cars:", error)
         setError("Unable to load cars right now. Please try again.")
+        // Don't clear cars on error - keep previous results visible
       } finally {
         if (!controller.signal.aborted) {
           setIsLoading(false)
@@ -495,16 +509,19 @@ export default function BrowseClient({ initialItems, initialMeta, initialParams 
             ) : (
               cars.map((car) => (
                 <div key={car.id} className="group relative">
-                  <article className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/80 shadow-[0_26px_54px_-46px_rgba(15,20,26,0.7)] transition-transform duration-300 hover:-translate-y-1.5">
+                  <article className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/80 backdrop-blur-sm shadow-[0_26px_54px_-46px_rgba(15,20,26,0.7)] border-white/10">
                     <div className="relative">
-                      <div className="relative aspect-[4/3] overflow-hidden">
-                        <Image
-                          src={car.image || "/placeholder.svg"}
-                          alt={car.name}
-                          fill
-                          className="object-cover transition-transform duration-500 group-hover:scale-105"
-                          sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
-                        />
+                      <div className="relative aspect-[4/3] overflow-hidden bg-background/50">
+                        <div className="absolute inset-0 scale-110">
+                          <Image
+                            src={car.image || "/placeholder.svg"}
+                            alt={car.name}
+                            fill
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
+                            sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+                            style={{ objectPosition: "center 25%" }}
+                          />
+                        </div>
                       </div>
                       <div className="absolute left-5 top-5 flex gap-2">
                         {car.year ? (

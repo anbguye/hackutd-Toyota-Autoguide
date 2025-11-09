@@ -248,7 +248,7 @@ export default async function CarDetailPage({
                   src={car.image || "/placeholder.svg"}
                   alt={car.name}
                   fill
-                  className="object-cover"
+                  className="object-contain"
                   sizes="(min-width: 1280px) 50vw, (min-width: 768px) 60vw, 100vw"
                   priority
                 />

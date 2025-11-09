@@ -50,14 +50,17 @@ function CarCard({ car, horizontal = false }: { car: CarCard; horizontal?: boole
     <Link href={`/car/${car.trim_id}`} className="group relative">
       <article className={`flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-border/70 bg-card/80 shadow-[0_26px_54px_-46px_rgba(15,20,26,0.7)] transition-transform duration-300 hover:-translate-y-1.5 ${horizontal ? "lg:flex-row" : ""}`}>
         <div className={`relative ${horizontal ? "lg:w-1/2" : ""}`}>
-          <div className={`relative aspect-[4/3] overflow-hidden ${horizontal ? "lg:h-full lg:aspect-auto" : ""}`}>
-            <Image
-              src={imageUrl}
-              alt={carName}
-              fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-              sizes={horizontal ? "(min-width: 1024px) 50vw, 100vw" : "100vw"}
-            />
+          <div className={`relative aspect-[4/3] overflow-hidden bg-background/50 ${horizontal ? "lg:h-full lg:aspect-auto" : ""}`}>
+            <div className="absolute inset-0 scale-110">
+              <Image
+                src={imageUrl}
+                alt={carName}
+                fill
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+                sizes={horizontal ? "(min-width: 1024px) 50vw, 100vw" : "100vw"}
+                style={{ objectPosition: "center 25%" }}
+              />
+            </div>
           </div>
           <div className="absolute left-5 top-5 flex gap-2">
             {car.model_year && (
