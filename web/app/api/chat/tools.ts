@@ -57,10 +57,10 @@ const searchToyotaTrimsTool = tool({
       .optional()
       .describe("Drive type (e.g., FWD, AWD, RWD, 4WD)"),
     transmission: z.string().optional().describe("Transmission type"),
-    fuelType: z
+    engineType: z
       .string()
       .optional()
-      .describe("Fuel type (e.g., Gasoline, Hybrid, Electric)"),
+      .describe("Engine type (e.g., Electric, Hybrid, Gas). IMPORTANT: Use this parameter when searching for electric, hybrid, or gas vehicles - do NOT use fuelType."),
     cylinders: z
       .number()
       .int()
@@ -161,8 +161,8 @@ const searchToyotaTrimsTool = tool({
     if (input.transmission) {
       query = query.ilike("transmission", `%${input.transmission}%`);
     }
-    if (input.fuelType) {
-      query = query.ilike("fuel_type", `%${input.fuelType}%`);
+    if (input.engineType) {
+      query = query.ilike("engine_type", `%${input.engineType}%`);
     }
     if (input.cylinders) {
       query = query.eq("cylinders", input.cylinders);
@@ -329,24 +329,24 @@ const displayCarRecommendationsTool = tool({
       .array(
         z.object({
           trim_id: z.number(),
-          model_year: z.number().nullable(),
-          make: z.string().nullable(),
-          model: z.string().nullable(),
-          trim: z.string().nullable(),
-          description: z.string().nullable(),
-          msrp: z.number().nullable(),
-          invoice: z.number().nullable(),
-          body_type: z.string().nullable(),
-          body_seats: z.number().nullable(),
-          drive_type: z.string().nullable(),
-          transmission: z.string().nullable(),
-          fuel_type: z.string().nullable(),
-          horsepower_hp: z.number().nullable(),
-          torque_ft_lbs: z.number().nullable(),
-          combined_mpg: z.number().nullable(),
-          city_mpg: z.number().nullable(),
-          highway_mpg: z.number().nullable(),
-          image_url: z.string().nullable(),
+          model_year: z.number().nullable().optional(),
+          make: z.string().nullable().optional(),
+          model: z.string().nullable().optional(),
+          trim: z.string().nullable().optional(),
+          description: z.string().nullable().optional(),
+          msrp: z.number().nullable().optional(),
+          invoice: z.number().nullable().optional(),
+          body_type: z.string().nullable().optional(),
+          body_seats: z.number().nullable().optional(),
+          drive_type: z.string().nullable().optional(),
+          transmission: z.string().nullable().optional(),
+          fuel_type: z.string().nullable().optional(),
+          horsepower_hp: z.number().nullable().optional(),
+          torque_ft_lbs: z.number().nullable().optional(),
+          combined_mpg: z.number().nullable().optional(),
+          city_mpg: z.number().nullable().optional(),
+          highway_mpg: z.number().nullable().optional(),
+          image_url: z.string().nullable().optional(),
         })
       )
       .min(1)

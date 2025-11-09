@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { CarRecommendations } from "@/components/chat/CarRecommendations";
+import { MemoizedMarkdown } from "@/components/memoized-markdown";
 
 type DisplayMessage = {
   id?: string;
@@ -46,11 +47,22 @@ export default function ChatPage() {
         part.state === "input-available"
     ) ?? false;
 
-  const aiMessages = chatMessages.map((message) => {
-    const textParts = message.parts
-      .map((part) => (part.type === "text" ? part.text : ""))
-      .join("")
-      .trim();
+  const aiMessages: DisplayMessage[] = chatMessages.map((message) => {
+    // Extract text parts and deduplicate them within the same message
+    const textPartsArray = message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text || "")
+      .filter((text) => text.trim().length > 0);
+    
+    // Remove duplicate consecutive text parts
+    const uniqueTextParts: string[] = [];
+    textPartsArray.forEach((text) => {
+      if (uniqueTextParts.length === 0 || uniqueTextParts[uniqueTextParts.length - 1] !== text.trim()) {
+        uniqueTextParts.push(text.trim());
+      }
+    });
+    
+    const textParts = uniqueTextParts.join(" ").trim();
 
     const hasToolParts = message.parts.some(
       (part) => part.type === "tool-displayCarRecommendations" || part.type === "tool-searchToyotaTrims"
@@ -62,10 +74,25 @@ export default function ChatPage() {
       content: textParts,
       parts: message.parts,
       hasToolParts,
+      suggestions: undefined, // Explicitly set to undefined to match DisplayMessage type
     };
   });
 
-  const displayMessages = [initialAgentMessage, ...aiMessages];
+  // Deduplicate messages: filter out consecutive messages with identical content
+  const deduplicatedMessages = aiMessages.filter((message, index, array) => {
+    // Always keep user messages
+    if (message.role === "user") return true;
+    
+    // For agent messages, check if the previous message has the same content
+    const previousMessage = array[index - 1];
+    if (previousMessage && previousMessage.role === "agent" && previousMessage.content === message.content) {
+      return false; // Skip duplicate
+    }
+    
+    return true;
+  });
+
+  const displayMessages = [initialAgentMessage, ...deduplicatedMessages];
 
   const handleSend = async () => {
     const messageToSend = input.trim();
@@ -73,13 +100,17 @@ export default function ChatPage() {
       return;
     }
 
+    // Clear input immediately for better UX
+    setInput("");
+
     try {
       await sendMessage({
         parts: [{ type: "text", text: messageToSend }],
       });
-      setInput("");
     } catch (sendError) {
       console.error("Failed to send message", sendError);
+      // Optionally restore the input if sending failed
+      // setInput(messageToSend);
     }
   };
 
@@ -119,13 +150,17 @@ export default function ChatPage() {
                         <div className={`flex max-w-[82%] flex-col gap-3 ${isUser ? "items-end" : "items-start"}`}>
                           {message.content && (
                             <div
-                              className={`rounded-3xl px-6 py-4 text-sm leading-relaxed ${
+                              className={`rounded-3xl px-6 py-4 text-sm leading-relaxed prose prose-sm max-w-none ${
                                 isUser
                                   ? "bg-primary text-primary-foreground shadow-[0_24px_48px_-32px_rgba(235,10,30,0.6)]"
                                   : "border border-border/70 bg-background/90"
                               }`}
                             >
-                              {message.content}
+                              {isUser ? (
+                                message.content
+                              ) : (
+                                <MemoizedMarkdown content={message.content} id={message.id ?? `msg-${i}`} />
+                              )}
                             </div>
                           )}
                           {message.parts && !isUser && (

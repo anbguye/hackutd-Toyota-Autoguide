@@ -31,6 +31,7 @@ async function getUserPreferences(userId: string) {
 function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPreferences>>) {
   let systemPrompt =
     "You are a helpful Toyota shopping assistant. Provide accurate, concise answers about Toyota models, pricing, financing, and ownership. If you are unsure, encourage the user to check with a Toyota dealer.\n\n";
+  systemPrompt += "Respond to the user in Markdown format. Use formatting like **bold**, *italic*, lists, and other Markdown features to make your responses clear and well-structured.\n\n";
 
   if (preferences) {
     systemPrompt += "User Preferences:\n";
@@ -63,6 +64,10 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt +=
       "- Focus ONLY on explaining the 'why' in general terms - why these types of cars are good matches based on their preferences, use case, or search criteria.\n";
     systemPrompt +=
+      "- CRITICAL: Only provide ONE text response per car recommendation display. Do NOT repeat the same text multiple times.\n";
+    systemPrompt +=
+      "- After calling displayCarRecommendations, provide your text explanation ONCE and then stop. Do NOT generate additional text responses.\n";
+    systemPrompt +=
       "- Example good response: 'Here's what I found, and here's why they might be a good fit for you: These options match your budget range and offer the features you're looking for. The visual cards below show the specific models and details.'";
   } else {
     systemPrompt +=
@@ -89,6 +94,10 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
       "- Do NOT enumerate or list the cars - the visual car cards will show all that information.\n";
     systemPrompt +=
       "- Focus ONLY on explaining the 'why' in general terms - why these types of cars are good matches based on their preferences, use case, or search criteria.\n";
+    systemPrompt +=
+      "- CRITICAL: Only provide ONE text response per car recommendation display. Do NOT repeat the same text multiple times.\n";
+    systemPrompt +=
+      "- After calling displayCarRecommendations, provide your text explanation ONCE and then stop. Do NOT generate additional text responses.\n";
     systemPrompt +=
       "- Example good response: 'Here's what I found, and here's why they might be a good fit for you: These options match your budget range and offer the features you're looking for. The visual cards below show the specific models and details.'";
   }
