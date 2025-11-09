@@ -7,8 +7,8 @@ import { ArrowLeft, Calendar, DollarSign, Fuel, Gauge, Users, Zap } from "lucide
 import { ToyotaFooter } from "@/components/layout/toyota-footer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { CarDetailContent } from "./car-detail-content"
 
 type VehicleForBooking = {
   trimId: number
@@ -166,6 +166,11 @@ function capitalizeWords(str: string): string {
     .join(" ")
 }
 
+function calculateMaintenanceReserve(msrp: number): number {
+  // 1% of MSRP annually, divided by 12 months
+  return Math.round(msrp * 0.01 / 12)
+}
+
 export default async function CarDetailPage({
   params,
 }: {
@@ -300,137 +305,12 @@ export default async function CarDetailPage({
         </section>
 
         <section className="toyota-container space-y-8">
-          <Tabs defaultValue="costs" className="space-y-8">
-            <TabsList className="grid gap-3 rounded-full bg-background/40 p-2 sm:grid-cols-3">
-              <TabsTrigger value="costs" className="rounded-full px-6 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                Total Costs
-              </TabsTrigger>
-              <TabsTrigger value="specs" className="rounded-full px-6 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                Full Specs
-              </TabsTrigger>
-              <TabsTrigger value="features" className="rounded-full px-6 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                Features
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="costs" className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="space-y-6">
-                <div className="rounded-3xl border border-border/70 bg-card/80 p-8">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-full bg-primary/10 p-3 text-primary">
-                      <DollarSign className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-secondary">Insurance Estimate</h3>
-                      <p className="text-sm text-muted-foreground">Based on an average Toyota driver profile</p>
-                    </div>
-                  </div>
-                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-border/60 bg-background/80 p-5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">Monthly</p>
-                      <p className="mt-3 text-2xl font-bold text-secondary">${insurance.monthly}</p>
-                    </div>
-                    <div className="rounded-2xl border border-border/60 bg-background/80 p-5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">Annual</p>
-                      <p className="mt-3 text-2xl font-bold text-secondary">${insurance.annual}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-border/70 bg-card/80 p-8">
-                  <h3 className="text-lg font-semibold text-secondary">Financing Scenarios</h3>
-                  <div className="mt-5 space-y-4">
-                    {financing.map((option) => (
-                      <div
-                        key={option.term}
-                        className="rounded-2xl border border-border/60 bg-background/80 p-5 transition-all hover:border-primary/60"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-secondary">{option.term}-month term</p>
-                            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">{option.rate}% APR</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-secondary">${option.payment}</p>
-                            <p className="text-xs text-muted-foreground">Per month</p>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex justify-between border-t border-dashed border-border/60 pt-3 text-xs text-muted-foreground">
-                          <span>Total Paid</span>
-                          <span className="font-semibold text-secondary">${option.total.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-primary/50 bg-primary/5 p-8">
-                <h3 className="text-lg font-semibold text-secondary">Total Monthly Snapshot</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Toyota Agent combines payment + protection so you know the real cost before stepping into the
-                  dealership.
-                </p>
-                <div className="mt-6 space-y-4">
-                  <OwnershipRow label="Car payment" value="$671/mo" />
-                  <OwnershipRow label="Insurance" value="$145/mo" />
-                  <OwnershipRow label="Maintenance reserve" value="$45/mo" />
-                  <div className="h-px bg-linear-to-r from-transparent via-primary/60 to-transparent" />
-                  <OwnershipRow label="Total" value="$861/mo" accent />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="specs" className="rounded-3xl border border-border/70 bg-card/80 p-8">
-              <div className="grid gap-10 lg:grid-cols-2">
-                <SpecGroup
-                  title="Performance"
-                  specs={[
-                    { label: "Engine", value: car.engineType ? capitalizeWords(car.engineType) : "N/A" },
-                    { label: "Horsepower", value: car.horsepower ? `${car.horsepower} hp` : "N/A" },
-                    { label: "Torque", value: car.torque ? `${car.torque} lb-ft` : "N/A" },
-                    { label: "Transmission", value: car.transmission ? capitalizeWords(car.transmission) : "N/A" },
-                  ]}
-                />
-                <SpecGroup
-                  title="Dimensions"
-                  specs={[
-                    { label: "Body Type", value: capitalizeWords(car.type) || "N/A" },
-                    { label: "Seating", value: car.seats ? `${car.seats} Seats` : "N/A" },
-                    { label: "Ground clearance", value: car.groundClearance ? `${car.groundClearance} in` : "N/A" },
-                    { label: "Cargo space", value: car.cargoCapacity ? `${car.cargoCapacity} cu ft` : "N/A" },
-                  ]}
-                />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="features" className="rounded-3xl border border-border/70 bg-card/80 p-8">
-              <div className="grid gap-10 lg:grid-cols-2">
-                <FeatureList
-                  title="Standard highlights"
-                  items={[
-                    "Toyota Safety Sense 3.0",
-                    "12.3\" Toyota Audio Multimedia",
-                    "Wireless Apple CarPlay & Android Auto",
-                    "LED headlamps & DRLs",
-                    "Dual-zone climate control",
-                    "Power liftgate",
-                  ]}
-                />
-                <FeatureList
-                  title="Available upgrades"
-                  items={[
-                    "Panoramic glass roof",
-                    "Digital rear-view mirror",
-                    "JBL® 11-speaker audio",
-                    "Advanced Park",
-                    "Bird's Eye View Camera",
-                    "Premium SofTex® seating",
-                  ]}
-                />
-              </div>
-            </TabsContent>
-          </Tabs>
+          <CarDetailContent
+            car={car}
+            insurance={insurance}
+            financing={financing}
+            maintenanceReserve={calculateMaintenanceReserve(car.msrp)}
+          />
         </section>
       </div>
 
@@ -453,63 +333,6 @@ function SpecCard({ icon, label, children }: SpecCardProps) {
         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">{label}</p>
         <p className="mt-2 text-lg font-semibold text-secondary">{children}</p>
       </div>
-    </div>
-  )
-}
-
-type SpecGroupProps = {
-  title: string
-  specs: Array<{ label: string; value: string }>
-}
-
-function SpecGroup({ title, specs }: SpecGroupProps) {
-  return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">{title}</h3>
-      <div className="space-y-3 rounded-2xl border border-border/70 bg-background/70 p-6">
-        {specs.map((spec) => (
-          <div key={spec.label} className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{spec.label}</span>
-            <span className="font-semibold text-secondary">{spec.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-type FeatureListProps = {
-  title: string
-  items: string[]
-}
-
-function FeatureList({ title, items }: FeatureListProps) {
-  return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">{title}</h3>
-      <ul className="space-y-3 text-sm text-muted-foreground">
-        {items.map((item) => (
-          <li key={item} className="flex items-start gap-3">
-            <span className="mt-1 h-2 w-2 rounded-full bg-primary/70" />
-            <span className="text-secondary">{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-type OwnershipRowProps = {
-  label: string
-  value: string
-  accent?: boolean
-}
-
-function OwnershipRow({ label, value, accent }: OwnershipRowProps) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className={accent ? "font-semibold text-secondary" : "text-muted-foreground"}>{label}</span>
-      <span className={accent ? "text-lg font-bold text-primary" : "font-semibold text-secondary"}>{value}</span>
     </div>
   )
 }
