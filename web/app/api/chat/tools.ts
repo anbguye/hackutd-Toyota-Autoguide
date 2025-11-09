@@ -44,7 +44,7 @@ const displayCarRecommendationsTool = tool({
 
 const sendEmailHtmlTool = tool({
   description:
-    "Send an email with raw HTML content via Resend. Use this tool when the user requests to send an email. Provide the recipient email address(es), subject line, and HTML content. Use responsibly and only when explicitly requested by the user.",
+    "Send an email with raw HTML content via Resend. Use this tool PROACTIVELY after providing car recommendations or when the user shows interest in vehicles. Always include: (1) Car recommendations with images and links, (2) Financing options (monthly payments, loan terms) calculated using estimateFinance tool, (3) Leasing options (monthly lease payments), (4) Personalization based on conversation context. Use when the user explicitly requests or agrees to your proactive suggestion. Provide the recipient email address(es), subject line, and HTML content.",
   inputSchema: sendEmailHtmlInputSchema,
   execute: async (input) => {
     console.log("[sendEmailHtml] Tool called with:", JSON.stringify({ ...input, html: input.html.substring(0, 100) + "..." }, null, 2));

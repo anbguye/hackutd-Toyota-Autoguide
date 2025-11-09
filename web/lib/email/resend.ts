@@ -1,6 +1,17 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resendInstance: Resend | null = null;
+
+function getResendClient(): Resend {
+  if (!resendInstance) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error("RESEND_API_KEY environment variable is not set. Email functionality is disabled.");
+    }
+    resendInstance = new Resend(apiKey);
+  }
+  return resendInstance;
+}
 
 export interface Attachment {
   filename: string;
@@ -19,6 +30,7 @@ export interface SendEmailHtmlParams {
 }
 
 export async function sendEmailHtml({ to, subject, html, cc, bcc, replyTo, attachments }: SendEmailHtmlParams) {
+  const resend = getResendClient();
   const toList = Array.isArray(to) ? to : [to];
 
   const { data, error } = await resend.emails.send({

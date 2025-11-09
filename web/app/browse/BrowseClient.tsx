@@ -103,8 +103,8 @@ export default function BrowseClient({ initialItems, initialMeta, initialParams 
     // After mount, only sync if we have no cars (fallback for direct URL navigation)
     // This prevents overwriting client-side fetch results during pagination
     if (cars.length === 0 && initialItems.length > 0 && !isLoading) {
-      setCars(initialItems)
-      setMeta(initialMeta)
+    setCars(initialItems)
+    setMeta(initialMeta)
     }
   }, [initialItems, initialMeta, cars.length, isLoading])
 
@@ -513,14 +513,14 @@ export default function BrowseClient({ initialItems, initialMeta, initialParams 
                     <div className="relative">
                       <div className="relative aspect-[4/3] overflow-hidden bg-background/50">
                         <div className="absolute inset-0 scale-110">
-                          <Image
-                            src={car.image || "/placeholder.svg"}
-                            alt={car.name}
-                            fill
-                            className="object-cover transition-transform duration-500 group-hover:scale-105"
-                            sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+                        <Image
+                          src={car.image || "/placeholder.svg"}
+                          alt={car.name}
+                          fill
+                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
                             style={{ objectPosition: "center 25%" }}
-                          />
+                        />
                         </div>
                       </div>
                       <div className="absolute left-5 top-5 flex gap-2">

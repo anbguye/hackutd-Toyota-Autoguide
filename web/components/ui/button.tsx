@@ -55,11 +55,11 @@ function Button({
   const prefersReducedMotion = useReducedMotion()
 
   if (prefersReducedMotion || asChild) {
-    return (
-      <Comp
-        data-slot="button"
-        className={cn(buttonVariants({ variant, size, className }))}
-        {...props}
+  return (
+    <Comp
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
       />
     )
   }

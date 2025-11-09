@@ -8,8 +8,10 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { ToyotaFooter } from "@/components/layout/toyota-footer"
 import { RequireAuth } from "@/components/auth/RequireAuth"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Spinner } from "@/components/ui/spinner"
 import { supabase } from "@/lib/supabase/client"
@@ -72,6 +74,12 @@ export default function QuizPage() {
   const [saving, setSaving] = useState(false)
   const [preferenceId, setPreferenceId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  // Optional personal information fields
+  const [reasonForNewCar, setReasonForNewCar] = useState<string>("")
+  const [currentCar, setCurrentCar] = useState<string>("")
+  const [age, setAge] = useState<string>("")
+  const [sex, setSex] = useState<string>("")
+  const [occupation, setOccupation] = useState<string>("")
 
   useEffect(() => {
     let active = true
@@ -91,14 +99,73 @@ export default function QuizPage() {
         if (!active) return
         setUserId(user.id)
 
+        // Try to select all fields, but handle gracefully if new columns don't exist yet
         const { data, error } = await supabase
           .from("user_preferences")
-          .select("id, budget_min, budget_max, car_types, seats, mpg_priority, use_case")
+          .select("*")
           .eq("user_id", user.id)
           .maybeSingle()
 
         if (error && error.code !== "PGRST116") {
+          // If error is about missing columns, try with basic fields only
+          if (error.message?.includes("column") || error.message?.includes("does not exist")) {
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from("user_preferences")
+              .select("id, budget_min, budget_max, car_types, seats, mpg_priority, use_case")
+              .eq("user_id", user.id)
+              .maybeSingle()
+            
+            if (fallbackError && fallbackError.code !== "PGRST116") {
+              throw fallbackError
+            }
+            
+            // Use fallback data if available, otherwise continue with null
+            if (fallbackData) {
+              // Process fallback data (without personal info fields)
+              if (fallbackData.id) {
+                setPreferenceId(fallbackData.id)
+              }
+              if (typeof fallbackData.budget_min === "number") {
+                setBudgetMin(Math.min(BUDGET_MAX, Math.max(BUDGET_MIN, fallbackData.budget_min)))
+              }
+              if (typeof fallbackData.budget_max === "number") {
+                setBudgetMax(Math.min(BUDGET_MAX, Math.max(BUDGET_MIN, fallbackData.budget_max)))
+              }
+              if (Array.isArray(fallbackData.car_types)) {
+                const savedStyle = fallbackData.car_types[0]?.toLowerCase()
+                if (savedStyle && isBodyStyleOption(savedStyle)) {
+                  setBodyStyle(savedStyle)
+                } else if (fallbackData.car_types.length === 0) {
+                  setBodyStyle("any")
+                }
+              }
+              if (typeof fallbackData.seats === "number") {
+                const seatValue = PASSENGER_OPTIONS.find((option) => Number(option.value) === fallbackData.seats)?.value
+                if (seatValue) {
+                  setSeatPreference(seatValue)
+                }
+              }
+              if (typeof fallbackData.use_case === "string") {
+                const useCaseMatch = USE_CASE_OPTIONS.find((option) => option.value === fallbackData.use_case)
+                if (useCaseMatch) {
+                  setPrimaryUseCase(useCaseMatch.value)
+                }
+              }
+              if (typeof fallbackData.mpg_priority === "string") {
+                const mpgMatch = MPG_OPTIONS.find((option) => option.value === fallbackData.mpg_priority)
+                if (mpgMatch) {
+                  setMpgPriority(mpgMatch.value)
+                }
+              }
+              // Skip personal info fields for fallback
+              if (active) {
+                setLoadingPreferences(false)
+              }
+              return
+            }
+          } else {
           throw error
+          }
         }
 
         if (data) {
@@ -136,6 +203,24 @@ export default function QuizPage() {
             if (mpgMatch) {
               setMpgPriority(mpgMatch.value)
             }
+          }
+          // Load optional personal info fields
+          if (typeof data.reason_for_new_car === "string") {
+            setReasonForNewCar(data.reason_for_new_car)
+          }
+          if (typeof data.current_car === "string") {
+            setCurrentCar(data.current_car)
+          }
+          if (typeof data.age === "number") {
+            setAge(String(data.age))
+          } else if (typeof data.age === "string") {
+            setAge(data.age)
+          }
+          if (typeof data.sex === "string") {
+            setSex(data.sex)
+          }
+          if (typeof data.occupation === "string") {
+            setOccupation(data.occupation)
           }
         }
       } catch (error) {
@@ -192,7 +277,7 @@ export default function QuizPage() {
         setUserId(user.id)
       }
 
-      const payload = {
+      const payload: Record<string, any> = {
         user_id: currentUserId,
         budget_min: budgetMin,
         budget_max: budgetMax,
@@ -202,6 +287,26 @@ export default function QuizPage() {
         mpg_priority: mpgPriority,
         updated_at: new Date().toISOString(),
       }
+      
+      // Add optional personal info fields (only if provided)
+      if (reasonForNewCar.trim()) {
+        payload.reason_for_new_car = reasonForNewCar.trim()
+      }
+      if (currentCar.trim()) {
+        payload.current_car = currentCar.trim()
+      }
+      if (age.trim()) {
+        const ageNum = parseInt(age.trim(), 10)
+        if (!isNaN(ageNum) && ageNum > 0) {
+          payload.age = ageNum
+        }
+      }
+      if (sex.trim()) {
+        payload.sex = sex.trim()
+      }
+      if (occupation.trim()) {
+        payload.occupation = occupation.trim()
+      }
 
       if (preferenceId) {
         const { error } = await supabase
@@ -210,7 +315,30 @@ export default function QuizPage() {
           .eq("id", preferenceId)
           .eq("user_id", currentUserId)
 
-        if (error) throw error
+        if (error) {
+          // If error is about missing columns, try updating without personal info fields
+          if (error.message?.includes("column") || error.message?.includes("does not exist")) {
+            const basicPayload: Record<string, any> = {
+              user_id: currentUserId,
+              budget_min: budgetMin,
+              budget_max: budgetMax,
+              car_types: bodyStyle === "any" ? [] : [bodyStyle],
+              seats: Number(seatPreference),
+              use_case: primaryUseCase,
+              mpg_priority: mpgPriority,
+              updated_at: new Date().toISOString(),
+            }
+            const { error: basicError } = await supabase
+              .from("user_preferences")
+              .update(basicPayload)
+              .eq("id", preferenceId)
+              .eq("user_id", currentUserId)
+            
+            if (basicError) throw basicError
+          } else {
+            throw error
+          }
+        }
       } else {
         const { data, error } = await supabase
           .from("user_preferences")
@@ -218,9 +346,36 @@ export default function QuizPage() {
           .select("id")
           .maybeSingle()
 
-        if (error) throw error
+        if (error) {
+          // If error is about missing columns, try inserting without personal info fields
+          if (error.message?.includes("column") || error.message?.includes("does not exist")) {
+            const basicPayload: Record<string, any> = {
+              user_id: currentUserId,
+              budget_min: budgetMin,
+              budget_max: budgetMax,
+              car_types: bodyStyle === "any" ? [] : [bodyStyle],
+              seats: Number(seatPreference),
+              use_case: primaryUseCase,
+              mpg_priority: mpgPriority,
+              updated_at: new Date().toISOString(),
+            }
+            const { data: basicData, error: basicError } = await supabase
+              .from("user_preferences")
+              .insert([basicPayload])
+              .select("id")
+              .maybeSingle()
+            
+            if (basicError) throw basicError
+            if (basicData?.id) {
+              setPreferenceId(basicData.id)
+            }
+          } else {
+            throw error
+          }
+        } else {
         if (data?.id) {
           setPreferenceId(data.id)
+          }
         }
       }
 
@@ -304,15 +459,15 @@ export default function QuizPage() {
                       </div>
                       <p className="text-sm uppercase tracking-[0.25em] text-muted-foreground">Budget range</p>
                     </div>
-                    <div className="mt-8 space-y-4">
-                      <Slider
+                  <div className="mt-8 space-y-4">
+                    <Slider
                         value={[budgetMin, budgetMax]}
                         onValueChange={handleBudgetRangeChange}
-                        min={BUDGET_MIN}
-                        max={BUDGET_MAX}
-                        step={BUDGET_STEP}
-                      />
-                      <div className="flex justify-between text-sm text-muted-foreground">
+                      min={BUDGET_MIN}
+                      max={BUDGET_MAX}
+                      step={BUDGET_STEP}
+                    />
+                    <div className="flex justify-between text-sm text-muted-foreground">
                         <span>${BUDGET_MIN.toLocaleString()}</span>
                         <span>${BUDGET_MAX.toLocaleString()}</span>
                       </div>
@@ -372,8 +527,9 @@ export default function QuizPage() {
             )}
 
             {step === 4 && (
+              <div className="space-y-6">
               <StepCard
-                title="What’s the primary use case?"
+                  title="What's the primary use case?"
                 description="We keep the experience adaptive—commuter calm, weekend adventure, or business-first."
               >
                 <RadioGroup
@@ -397,9 +553,26 @@ export default function QuizPage() {
                   ))}
                 </RadioGroup>
               </StepCard>
+                
+                <div className="mt-6 space-y-4 rounded-2xl border border-border/70 bg-background/60 p-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="reason-for-new-car" className="text-sm font-semibold text-secondary">
+                      Why are you looking for a new car? <span className="text-muted-foreground font-normal">(Optional)</span>
+                    </Label>
+                    <Input
+                      id="reason-for-new-car"
+                      placeholder="e.g., Upgrading, Replacing old vehicle, First car..."
+                      value={reasonForNewCar}
+                      onChange={(e) => setReasonForNewCar(e.target.value)}
+                      className="rounded-xl border-border/70 bg-background/80"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
 
             {step === 5 && (
+              <div className="space-y-6">
               <StepCard
                 title="How critical is fuel efficiency?"
                 description="Toyota Agent blends hybrid, plug-in, and gasoline options based on your stance."
@@ -425,6 +598,85 @@ export default function QuizPage() {
                   ))}
                 </RadioGroup>
               </StepCard>
+                
+                <div className="mt-6 space-y-4 rounded-2xl border border-dashed border-border/70 bg-background/40 p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-semibold text-secondary">
+                      Personal Information <span className="text-muted-foreground font-normal">(Optional - Skip if you prefer)</span>
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCurrentCar("")
+                        setAge("")
+                        setSex("")
+                        setOccupation("")
+                      }}
+                      className="text-xs text-muted-foreground hover:text-secondary"
+                    >
+                      Clear all
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="current-car" className="text-xs font-semibold text-muted-foreground">
+                        Current Vehicle
+                      </Label>
+                      <Input
+                        id="current-car"
+                        placeholder="e.g., 2015 Honda Civic"
+                        value={currentCar}
+                        onChange={(e) => setCurrentCar(e.target.value)}
+                        className="rounded-xl border-border/70 bg-background/80"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="age" className="text-xs font-semibold text-muted-foreground">
+                        Age
+                      </Label>
+                      <Input
+                        id="age"
+                        type="number"
+                        placeholder="e.g., 35"
+                        value={age}
+                        onChange={(e) => setAge(e.target.value)}
+                        min="1"
+                        max="120"
+                        className="rounded-xl border-border/70 bg-background/80"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sex" className="text-xs font-semibold text-muted-foreground">
+                        Gender
+                      </Label>
+                      <Select value={sex} onValueChange={setSex}>
+                        <SelectTrigger id="sex" className="rounded-xl border-border/70 bg-background/80">
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="occupation" className="text-xs font-semibold text-muted-foreground">
+                        Occupation
+                      </Label>
+                      <Input
+                        id="occupation"
+                        placeholder="e.g., Software Engineer"
+                        value={occupation}
+                        onChange={(e) => setOccupation(e.target.value)}
+                        className="rounded-xl border-border/70 bg-background/80"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             <div className="mt-10 flex items-center justify-between border-t border-border/60 pt-6">
@@ -486,14 +738,17 @@ type SelectableRowProps = {
 
 function SelectableRow({ id, value, label, description, alignTop = false }: SelectableRowProps) {
   return (
-    <div className="group flex cursor-pointer items-start gap-3 rounded-2xl border border-border/70 bg-background/60 px-5 py-4 transition-all hover:border-primary/60 hover:bg-primary/10">
+    <Label
+      htmlFor={id}
+      className="group flex cursor-pointer items-start gap-3 rounded-2xl border border-border/70 bg-background/60 px-5 py-4 transition-all hover:border-primary/60 hover:bg-primary/10"
+    >
       <RadioGroupItem value={value} id={id} className={alignTop ? "mt-1.5" : ""} />
-      <div>
-        <Label htmlFor={id} className="cursor-pointer text-base font-semibold text-secondary">
+      <div className="flex-1">
+        <span className="text-base font-semibold text-secondary">
           {label}
-        </Label>
+        </span>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
-    </div>
+    </Label>
   )
 }

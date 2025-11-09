@@ -52,14 +52,14 @@ function CarCard({ car, horizontal = false }: { car: CarCard; horizontal?: boole
         <div className={`relative ${horizontal ? "lg:w-1/2" : ""}`}>
           <div className={`relative aspect-[4/3] overflow-hidden bg-background/50 ${horizontal ? "lg:h-full lg:aspect-auto" : ""}`}>
             <div className="absolute inset-0 scale-110">
-              <Image
-                src={imageUrl}
-                alt={carName}
-                fill
-                className="object-cover transition-transform duration-500 group-hover:scale-105"
-                sizes={horizontal ? "(min-width: 1024px) 50vw, 100vw" : "100vw"}
+            <Image
+              src={imageUrl}
+              alt={carName}
+              fill
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              sizes={horizontal ? "(min-width: 1024px) 50vw, 100vw" : "100vw"}
                 style={{ objectPosition: "center 25%" }}
-              />
+            />
             </div>
           </div>
           <div className="absolute left-5 top-5 flex gap-2">

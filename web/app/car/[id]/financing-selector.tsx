@@ -99,7 +99,7 @@ export function FinancingSelector({
               </div>
             </div>
           </motion.div>
-        )}
+      )}
       </AnimatePresence>
     </div>
   )

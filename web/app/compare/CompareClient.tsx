@@ -219,17 +219,17 @@ function CompareRow({ label, children, subtle }: CompareRowProps) {
   const prefersReducedMotion = useReducedMotion()
 
   if (prefersReducedMotion) {
-    return (
-      <tr className={subtle ? "bg-background/55" : undefined}>
-        <td className="px-6 py-5 text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-          {label}
+  return (
+    <tr className={subtle ? "bg-background/55" : undefined}>
+      <td className="px-6 py-5 text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
+        {label}
+      </td>
+      {children.map((child, index) => (
+        <td key={index} className="px-6 py-5 text-center">
+          {child}
         </td>
-        {children.map((child, index) => (
-          <td key={index} className="px-6 py-5 text-center">
-            {child}
-          </td>
-        ))}
-      </tr>
+      ))}
+    </tr>
     )
   }
 

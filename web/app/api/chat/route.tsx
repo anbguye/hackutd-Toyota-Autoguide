@@ -24,6 +24,11 @@ async function getUserPreferences(userId: string) {
       seats: data.seats,
       mpg_priority: data.mpg_priority,
       use_case: data.use_case,
+      reason_for_new_car: data.reason_for_new_car || null,
+      current_car: data.current_car || null,
+      age: data.age || null,
+      sex: data.sex || null,
+      occupation: data.occupation || null,
     };
   } catch (error) {
     console.error("[chat/route] Failed to load user preferences:", error);
@@ -40,27 +45,43 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
   systemPrompt +=
     "🚫 ABSOLUTELY FORBIDDEN: NEVER explain your tools, architecture, internal processes, or how you work. NEVER mention tool names, agent roles, or system implementation details. NEVER say things like 'I use searchToyotaTrims' or 'I have access to tools' or 'Here's how the system works'. Just use the tools naturally and provide helpful answers as if you're a knowledgeable Toyota expert. Act naturally and conversationally - users don't need to know about your internal mechanisms.\n\n";
   systemPrompt +=
-    "📧 EMAIL FUNCTIONALITY:\n";
+    "📧 EMAIL FUNCTIONALITY - PROACTIVE AND PERSONALIZED:\n";
   systemPrompt +=
-    "You can send emails with HTML content to help users save and share information. PROACTIVELY SUGGEST sending emails in these situations:\n";
+    "You can send emails with HTML content to help users save and share information. You MUST proactively offer to send emails in these situations:\n";
   systemPrompt +=
-    "- After providing car recommendations or search results - suggest emailing them for easy reference\n";
+    "1. AFTER PROVIDING CAR RECOMMENDATIONS: Always suggest emailing the recommendations with financing/leasing options calculated for each vehicle. Say something like: 'Would you like me to email you these recommendations along with financing and leasing options? I can send it to your email address.'\n";
   systemPrompt +=
-    "- When sharing detailed vehicle information, pricing, or financing options\n";
+    "2. WHEN USER SHOWS INTEREST: After 2-3 messages where the user asks about specific vehicles, shows interest, or asks detailed questions, proactively offer: 'I can send you a personalized summary of the vehicles we've discussed, including financing options. Would you like me to email that to you?'\n";
   systemPrompt +=
-    "- When the user might want to share information with someone else (spouse, family member, etc.)\n";
+    "3. When sharing detailed vehicle information, pricing, or financing options - always offer to email it\n";
   systemPrompt +=
-    "- When providing a summary of multiple vehicles or a comparison\n";
+    "4. When the user might want to share information with someone else (spouse, family member, etc.)\n";
+  systemPrompt +=
+    "5. When providing a summary of multiple vehicles or a comparison\n";
+  systemPrompt +=
+    "CRITICAL EMAIL CONTENT REQUIREMENTS:\n";
+  systemPrompt +=
+    "- ALWAYS include car recommendations with images and clickable links to car detail pages\n";
+  systemPrompt +=
+    "- ALWAYS include financing options (monthly payments, loan terms) for each recommended vehicle using the estimateFinance tool\n";
+  systemPrompt +=
+    "- ALWAYS include leasing options (monthly lease payments) for each recommended vehicle\n";
+  systemPrompt +=
+    "- Personalize the email based on CONVERSATION CONTEXT (what the user said, their questions, their interests) - NOT based on quiz preferences\n";
+  systemPrompt +=
+    "- Use professional, Toyota-branded formatting with clear sections\n";
+  systemPrompt +=
+    "- Make the email feel personalized to the specific conversation you had\n";
   systemPrompt +=
     "Use the sendEmailHtml tool when:\n";
   systemPrompt +=
     "- The user explicitly asks you to send an email\n";
   systemPrompt +=
-    "- The user agrees to your suggestion to send an email\n";
+    "- The user agrees to your proactive suggestion to send an email (e.g., says 'yes', 'sure', 'please', 'that would be great')\n";
   systemPrompt +=
     "- The user provides an email address and asks you to send information there\n";
   systemPrompt +=
-    "IMPORTANT: Always suggest sending emails proactively when appropriate, but only actually send emails when the user explicitly requests it or agrees to your suggestion. Never send unsolicited emails without user confirmation. When sending emails:\n";
+    "IMPORTANT: Always suggest sending emails proactively when appropriate (especially after recommendations or when interest is shown), but only actually send emails when the user explicitly requests it or agrees to your suggestion. Never send unsolicited emails without user confirmation. When sending emails:\n";
   systemPrompt +=
     "- Use clear, professional subject lines\n";
   systemPrompt +=
@@ -107,6 +128,21 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt += `Seating Needed: ${seats} seats\n`;
     systemPrompt += `Primary Use Case: ${useCase}\n`;
     systemPrompt += `MPG Priority: ${mpgPriority}\n`;
+    if (preferences.reason_for_new_car) {
+      systemPrompt += `Reason for New Car: ${preferences.reason_for_new_car}\n`;
+    }
+    if (preferences.current_car) {
+      systemPrompt += `Current Vehicle: ${preferences.current_car}\n`;
+    }
+    if (preferences.age) {
+      systemPrompt += `Age: ${preferences.age}\n`;
+    }
+    if (preferences.sex) {
+      systemPrompt += `Gender: ${preferences.sex}\n`;
+    }
+    if (preferences.occupation) {
+      systemPrompt += `Occupation: ${preferences.occupation}\n`;
+    }
     systemPrompt += "\n";
     systemPrompt += "Raw JSON (for API calls - budget values are in dollars):\n";
     systemPrompt += JSON.stringify(preferences, null, 2);
@@ -152,6 +188,10 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt +=
       "WHEN DISPLAYING CAR RECOMMENDATIONS:\n";
     systemPrompt +=
+      "- CRITICAL: You MUST use the displayCarRecommendations TOOL - do NOT output JSON or code blocks in your text response.\n";
+    systemPrompt +=
+      "- NEVER output JSON objects, code blocks, or <displayCarRecommendations> tags in your text. Use the tool instead.\n";
+    systemPrompt +=
       "- Keep your text response concise (2-3 sentences maximum).\n";
     systemPrompt +=
       "- Say something like 'Here's what I found, and here's why they might be a good fit for you:' followed by a brief explanation of why these cars match their needs.\n";
@@ -164,7 +204,7 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt +=
       "- CRITICAL: Only provide ONE text response per car recommendation display. Do NOT repeat the same text multiple times.\n";
     systemPrompt +=
-      "- After calling displayCarRecommendations, provide your text explanation ONCE and then stop. Do NOT generate additional text responses.\n";
+      "- After calling displayCarRecommendations tool, provide your text explanation ONCE and then stop. Do NOT generate additional text responses.\n";
     systemPrompt +=
       "- Example good response: 'Here's what I found, and here's why they might be a good fit for you: These options match your budget range and offer the features you're looking for. The visual cards below show the specific models and details.'";
   } else {
@@ -183,6 +223,10 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt +=
       "WHEN DISPLAYING CAR RECOMMENDATIONS:\n";
     systemPrompt +=
+      "- CRITICAL: You MUST use the displayCarRecommendations TOOL - do NOT output JSON or code blocks in your text response.\n";
+    systemPrompt +=
+      "- NEVER output JSON objects, code blocks, or <displayCarRecommendations> tags in your text. Use the tool instead.\n";
+    systemPrompt +=
       "- Keep your text response concise (2-3 sentences maximum).\n";
     systemPrompt +=
       "- Say something like 'Here's what I found, and here's why they might be a good fit for you:' followed by a brief explanation of why these cars match their needs.\n";
@@ -195,7 +239,7 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt +=
       "- CRITICAL: Only provide ONE text response per car recommendation display. Do NOT repeat the same text multiple times.\n";
     systemPrompt +=
-      "- After calling displayCarRecommendations, provide your text explanation ONCE and then stop. Do NOT generate additional text responses.\n";
+      "- After calling displayCarRecommendations tool, provide your text explanation ONCE and then stop. Do NOT generate additional text responses.\n";
     systemPrompt +=
       "- Example good response: 'Here's what I found, and here's why they might be a good fit for you: These options match your budget range and offer the features you're looking for. The visual cards below show the specific models and details.'";
   }

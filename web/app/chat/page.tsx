@@ -73,9 +73,9 @@ function formatUseCase(useCase: string | null): string {
 function generateInitialMessage(preferences: UserPreferences | null): DisplayMessage {
   if (!preferences) {
     return {
-      role: "agent",
+  role: "agent",
       content: "Hi! I'm your Toyota shopping companion. I can help you find the perfect Toyota vehicle based on your preferences. What are you looking for today?",
-      suggestions: ["Show me SUVs", "I want a sedan", "What's my best option?"],
+      suggestions: ["Find my perfect Toyota", "Show me SUVs", "What's my best match?"],
     };
   }
 
@@ -124,8 +124,8 @@ function generateInitialMessage(preferences: UserPreferences | null): DisplayMes
   return {
     role: "agent",
     content,
-    suggestions: ["Yes, that's right", "I want to adjust my preferences", "Show me the options"],
-  };
+    suggestions: ["Let's find my Toyota", "Show me matches", "I want to explore"],
+};
 }
 
 export default function ChatPage() {
@@ -279,7 +279,16 @@ export default function ChatPage() {
       }
     });
     
-    const textParts = uniqueTextParts.join(" ").trim();
+    let textParts = uniqueTextParts.join(" ").trim();
+
+    // Filter out tool-like JSON blocks that the LLM might output as text
+    // Remove <displayCarRecommendations>...</displayCarRecommendations> blocks
+    textParts = textParts.replace(/<displayCarRecommendations>[\s\S]*?<\/displayCarRecommendations>/gi, "");
+    // Remove JSON code blocks that look like tool outputs
+    textParts = textParts.replace(/```json\s*\{[\s\S]*?"items"[\s\S]*?\}\s*```/gi, "");
+    // Remove any standalone JSON objects that look like tool outputs
+    textParts = textParts.replace(/\{[\s\S]*?"trim_id"[\s\S]*?"image_url"[\s\S]*?\}/g, "");
+    textParts = textParts.trim();
 
     const hasToolParts = message.parts.some(
       (part) => part.type === "tool-displayCarRecommendations" || part.type === "tool-searchToyotaTrims"
