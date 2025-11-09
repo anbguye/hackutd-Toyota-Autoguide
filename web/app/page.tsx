@@ -36,6 +36,36 @@ const featureCards = [
   },
 ]
 
+const modelShowcase = [
+  {
+    name: "RAV4 Hybrid",
+    tagline: "SUV • Hybrid AWD",
+    description:
+      "America’s favourite hybrid SUV keeps its edge with standard Toyota Safety Sense 3.0 and confident AWD traction.",
+    trims: ["XLE", "XSE", "Limited"],
+    image: "/toyota-rav4-hybrid.jpg",
+    href: "/browse?q=rav4%20hybrid",
+  },
+  {
+    name: "Camry Hybrid",
+    tagline: "Sedan • Electrified FWD",
+    description:
+      "A flagship sedan reimagined—sporty SE looks, whisper-quiet EV glide, and 50+ MPG to flatten every commute.",
+    trims: ["SE Nightshade", "XSE", "XLE"],
+    image: "/toyota-camry-modern.png",
+    href: "/browse?q=camry%20hybrid",
+  },
+  {
+    name: "Grand Highlander",
+    tagline: "SUV • 3-Row Family",
+    description:
+      "Road-trip ready with adult-sized third row comfort, Hybrid MAX punch, and the elevated tech families crave.",
+    trims: ["XLE", "Limited", "Platinum"],
+    image: "/toyota-highlander.png",
+    href: "/browse?q=grand%20highlander",
+  },
+]
+
 const experienceSteps = [
   {
     step: "Step 01",
@@ -64,11 +94,11 @@ const heroOverlap = false
 export default function LandingPage() {
   return (
     <div className="flex min-h-full flex-col bg-background text-foreground">
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative flex-1">
         <div className="pointer-events-none absolute -top-[240px] right-[-240px] h-[520px] w-[520px] rounded-full bg-primary/15 blur-[140px]" />
         <div className="pointer-events-none absolute bottom-[-360px] left-[-200px] h-[620px] w-[620px] rounded-full bg-secondary/10 blur-[160px]" />
 
-        <div className="space-y-32 pb-24 pt-8 sm:pt-12">
+        <div className="space-y-32 pb-24" style={{ paddingTop: "calc(var(--header-h, 80px) + 2.5rem)" }}>
           <section
             id="top"
             className="toyota-container grid grid-cols-1 items-center gap-8 scroll-mt-24 md:scroll-mt-28 lg:scroll-mt-32 lg:grid-cols-2"
@@ -169,6 +199,70 @@ export default function LandingPage() {
             ))}
         </div>
       </section>
+
+          <section
+            id="models"
+            className="toyota-container space-y-12 scroll-mt-24 md:scroll-mt-28 lg:scroll-mt-32"
+          >
+            <div className="max-w-3xl space-y-4">
+              <span className="toyota-chip">Model trims</span>
+              <h2 className="text-pretty text-3xl font-black tracking-tight text-secondary sm:text-4xl">
+                Choose the trim that fits how you drive.
+              </h2>
+              <p className="text-lg text-muted-foreground sm:text-xl">
+                Toyota Agent keeps every trim’s personality in focus—so you can jump straight to the packages that match
+                your priorities.
+              </p>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {modelShowcase.map((model) => (
+                <article
+                  key={model.name}
+                  className="group flex h-full flex-col overflow-hidden rounded-[1.9rem] border border-border/70 bg-card/85 shadow-[0_32px_66px_-58px_rgba(15,20,26,0.8)] transition-transform duration-300 hover:-translate-y-1.5"
+                >
+                  <div className="relative overflow-hidden">
+                    <div className="relative aspect-[4/3]">
+                      <Image
+                        src={model.image}
+                        alt={model.name}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+                      />
+                    </div>
+                    <div className="absolute left-5 top-5">
+                      <span className="rounded-full bg-background/90 px-4 py-1 text-xs font-semibold uppercase tracking-[0.32em] text-secondary">
+                        Signature trims
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-1 flex-col gap-5 p-6">
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-semibold text-secondary">{model.name}</h3>
+                      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">{model.tagline}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{model.description}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {model.trims.map((trim) => (
+                        <span
+                          key={trim}
+                          className="rounded-full border border-border/70 bg-background/85 px-4 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-secondary shadow-[0_16px_36px_-30px_rgba(15,20,26,0.7)]"
+                        >
+                          {trim}
+                        </span>
+                      ))}
+                    </div>
+                    <Link href={model.href} className="mt-auto">
+                      <Button className="w-full rounded-full px-6 py-2 text-sm font-semibold">
+                        Explore trims <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
 
           <section
             id="experience"

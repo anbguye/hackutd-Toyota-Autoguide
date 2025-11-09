@@ -41,10 +41,10 @@ type ToyotaHeaderProps = {
 }
 
 const DEFAULT_NAV: NavItem[] = [
-  { label: 'Home', href: '/' },
+  { label: 'Home', href: '/#top' },
   { label: 'Compare', href: '/compare' },
   { label: 'Agent', href: '/chat' },
-  { label: 'Models', href: '/browse' },
+  { label: 'Models', href: '/#models' },
   { label: 'Pricing', href: '/#pricing' },
   { label: 'Experience', href: '/#experience' },
 ]

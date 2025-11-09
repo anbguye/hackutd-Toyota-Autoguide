@@ -12,10 +12,10 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 const NAV_ITEMS = [
-  { label: "Home", href: "/" },
+  { label: "Home", href: "/#top" },
   { label: "Compare", href: "/compare" },
   { label: "Agent", href: "/chat" },
-  { label: "Models", href: "/browse" },
+  { label: "Models", href: "/#models" },
   { label: "Pricing", href: "/#pricing" },
   { label: "Experience", href: "/#experience" },
 ]
@@ -59,7 +59,8 @@ export default function RootLayout({
         </Suspense>
         <div className="flex min-h-screen flex-col bg-background">
           <ToyotaHeader navItems={NAV_ITEMS} secondaryLinks={SECONDARY_LINKS} />
-          <main className="flex-1" style={{ paddingTop: "var(--header-h, 80px)" }}>
+          <div aria-hidden="true" className="shrink-0" style={{ height: "var(--header-h, 80px)" }} />
+          <main className="flex-1">
             {children}
           </main>
         </div>
