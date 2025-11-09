@@ -5,6 +5,8 @@ import {
   displayCarRecommendationsInputSchema,
 } from "@/lib/cars/schemas";
 import type { CarCard } from "@/lib/cars/types";
+import { sendEmailHtmlInputSchema } from "@/lib/email/schemas";
+import { sendEmailHtml } from "@/lib/email/resend";
 
 const searchToyotaTrimsTool = tool({
   description:
@@ -39,9 +41,35 @@ const displayCarRecommendationsTool = tool({
   },
 });
 
+const sendEmailHtmlTool = tool({
+  description:
+    "Send an email with raw HTML content via Resend. Use this tool when the user requests to send an email. Provide the recipient email address(es), subject line, and HTML content. Use responsibly and only when explicitly requested by the user.",
+  inputSchema: sendEmailHtmlInputSchema,
+  execute: async (input) => {
+    console.log("[sendEmailHtml] Tool called with:", JSON.stringify({ ...input, html: input.html.substring(0, 100) + "..." }, null, 2));
+    try {
+      const result = await sendEmailHtml(input);
+      console.log("[sendEmailHtml] Email sent successfully:", result?.id);
+      return {
+        success: true,
+        id: result?.id,
+        to: input.to,
+        subject: input.subject,
+      };
+    } catch (error) {
+      console.error("[sendEmailHtml] Error sending email:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  },
+});
+
 export const tools = {
   searchToyotaTrims: searchToyotaTrimsTool,
   displayCarRecommendations: displayCarRecommendationsTool,
+  sendEmailHtml: sendEmailHtmlTool,
 } satisfies ToolSet;
 
 export type ChatTools = InferUITools<typeof tools>;

@@ -7,6 +7,7 @@
  * Function names in Retell should be:
  * - search_toyota_trims
  * - display_car_recommendations
+ * - send_email_html
  */
 
 export const searchToyotaTrimsJsonSchema = {
@@ -157,4 +158,6 @@ export const displayCarRecommendationsJsonSchema = {
   },
   required: ["items"],
 } as const;
+
+export { sendEmailHtmlJsonSchema } from "@/lib/email/schemas";
 
