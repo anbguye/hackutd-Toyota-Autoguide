@@ -33,11 +33,13 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
   let systemPrompt =
     "You are a helpful Toyota shopping assistant. Provide accurate, concise answers about Toyota models, pricing, financing, and ownership. If you are unsure, encourage the user to check with a Toyota dealer.\n\n";
   systemPrompt += "Respond to the user in Markdown format. Use formatting like **bold**, *italic*, lists, and other Markdown features to make your responses clear and well-structured.\n\n";
+  systemPrompt +=
+    "⚠️ CRITICAL RULE: NEVER make claims about vehicle availability, pricing, or whether vehicles exist WITHOUT FIRST calling the searchToyotaTrims tool to check the actual database. Your training data may be outdated or incorrect - ALWAYS verify with the database first.\n\n";
 
   if (preferences) {
-    // Format preferences for better readability (convert cents to dollars for display)
-    const budgetMin = preferences.budget_min ? preferences.budget_min / 100 : null;
-    const budgetMax = preferences.budget_max ? preferences.budget_max / 100 : null;
+    // Format preferences for better readability (budget values are already in dollars)
+    const budgetMin = preferences.budget_min || null;
+    const budgetMax = preferences.budget_max || null;
     const carTypes = preferences.car_types && preferences.car_types.length > 0 
       ? preferences.car_types.join(", ") 
       : "any type";
@@ -52,31 +54,47 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
     systemPrompt += `Primary Use Case: ${useCase}\n`;
     systemPrompt += `MPG Priority: ${mpgPriority}\n`;
     systemPrompt += "\n";
-    systemPrompt += "Raw JSON (for API calls - budget values are in cents):\n";
+    systemPrompt += "Raw JSON (for API calls - budget values are in dollars):\n";
     systemPrompt += JSON.stringify(preferences, null, 2);
     systemPrompt += "\n\n";
     systemPrompt +=
-      "CRITICAL INSTRUCTIONS:\n";
+      "CRITICAL INSTRUCTIONS - READ CAREFULLY:\n";
     systemPrompt +=
-      "- When talking to the user, ALWAYS use dollar amounts (e.g., $35,000), NEVER mention cents or 'converted from cents'\n";
+      "1. NEVER claim that vehicles are unavailable or don't exist WITHOUT FIRST calling searchToyotaTrims to check the database.\n";
     systemPrompt +=
-      "- When calling searchToyotaTrims, use the budget_min and budget_max values from the Raw JSON (they are in cents)\n";
+      "2. NEVER make assumptions about vehicle availability, pricing, or features based on your training data - ALWAYS call searchToyotaTrims to get real data.\n";
     systemPrompt +=
-      "- Use these preferences as defaults when searching for cars. When searching, prefer filtering by msrp price, but fallback to invoice if msrp is unavailable.\n";
+      "3. When a user asks about vehicles matching their preferences, you MUST call searchToyotaTrims FIRST before responding.\n";
     systemPrompt +=
-      "- Reference these preferences naturally in your responses - mention the user's budget range, preferred vehicle type, use case, etc.\n\n";
+      "4. If searchToyotaTrims returns empty results (items array is empty), THEN you can say no vehicles match, but ONLY after calling the tool.\n";
     systemPrompt +=
-      "IMPORTANT WORKFLOW FOR SHOWING CARS:\n";
+      "5. When talking to the user, ALWAYS use dollar amounts (e.g., $35,000), NEVER mention cents or 'converted from cents'.\n";
     systemPrompt +=
-      "1. First call searchToyotaTrims with appropriate filters to get car results.\n";
+      "6. When calling searchToyotaTrims, use the budget_min and budget_max values from the Raw JSON (they are in dollars, same as msrp in the database).\n";
     systemPrompt +=
-      "2. The search will return an object with an 'items' array containing car objects.\n";
+      "7. Use these preferences as defaults when searching for cars. When searching, prefer filtering by msrp price, but fallback to invoice if msrp is unavailable.\n";
     systemPrompt +=
-      "3. Select 1-3 best matching cars from the 'items' array.\n";
+      "8. Reference these preferences naturally in your responses - mention the user's budget range, preferred vehicle type, use case, etc.\n\n";
     systemPrompt +=
-      "4. Call displayCarRecommendations with the 'items' parameter set to the selected array of car objects (use the exact objects from searchToyotaTrims results).\n";
+      "MANDATORY WORKFLOW FOR ANY VEHICLE-RELATED QUERIES:\n";
     systemPrompt +=
-      "5. Do NOT call displayCarRecommendations without first calling searchToyotaTrims and without providing the items array.\n\n";
+      "STEP 1: ALWAYS call searchToyotaTrims FIRST with filters matching the user's preferences:\n";
+    systemPrompt +=
+      "  - Use budget_min and budget_max from Raw JSON (in dollars)\n";
+    systemPrompt +=
+      "  - Use seatsMin if user needs specific seating\n";
+    systemPrompt +=
+      "  - Use bodyType if user specified a vehicle type\n";
+    systemPrompt +=
+      "  - Use other filters as appropriate\n";
+    systemPrompt +=
+      "STEP 2: Check the search results:\n";
+    systemPrompt +=
+      "  - If items array has results: Select 1-3 best matches and call displayCarRecommendations\n";
+    systemPrompt +=
+      "  - If items array is empty: THEN you can explain that no vehicles match the criteria\n";
+    systemPrompt +=
+      "STEP 3: NEVER claim 'no vehicles available' or make statements about vehicle availability WITHOUT completing STEP 1 first.\n\n";
     systemPrompt +=
       "WHEN DISPLAYING CAR RECOMMENDATIONS:\n";
     systemPrompt +=

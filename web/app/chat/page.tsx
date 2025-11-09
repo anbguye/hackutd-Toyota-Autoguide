@@ -34,12 +34,12 @@ type UserPreferences = {
 function formatBudget(min: number | null, max: number | null): string {
   if (!min && !max) return "your budget";
   if (min && max) {
-    const minFormatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(min / 100);
-    const maxFormatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(max / 100);
+    const minFormatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(min);
+    const maxFormatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(max);
     return `${minFormatted} to ${maxFormatted}`;
   }
   if (max) {
-    const maxFormatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(max / 100);
+    const maxFormatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(max);
     return `up to ${maxFormatted}`;
   }
   return "your budget";

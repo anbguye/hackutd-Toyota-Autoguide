@@ -8,11 +8,13 @@ import type { CarCard } from "@/lib/cars/types";
 
 const searchToyotaTrimsTool = tool({
   description:
-    "Search and filter Toyota trim specifications from the database. Use this to find cars matching user preferences or search criteria. Returns up to 24 results.",
+    "MANDATORY: Search and filter Toyota trim specifications from the ACTUAL DATABASE. You MUST call this tool BEFORE making any claims about vehicle availability, pricing, or features. Use this to find cars matching user preferences or search criteria. Returns up to 24 results. NEVER claim vehicles are unavailable without calling this tool first.",
   inputSchema: searchToyotaTrimsInputSchema,
   execute: async (input) => {
-    console.log(input);
-    return await searchToyotaTrims(input);
+    console.log("[searchToyotaTrims] Tool called with:", JSON.stringify(input, null, 2));
+    const result = await searchToyotaTrims(input);
+    console.log("[searchToyotaTrims] Tool returned:", result.count, "items");
+    return result;
   },
 });
 
