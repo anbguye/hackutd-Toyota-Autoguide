@@ -1,39 +1,100 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { convertToModelMessages, stepCountIs, streamText, tool, type InferUITools, type ToolSet, type UIDataTypes, type UIMessage } from "ai";
-import z from "zod";
-
-
-const tools = {
-    getLocation: tool({
-      description: 'Get the location of the user',
-      inputSchema: z.object({}),
-      execute: async () => {
-        const location = { lat: 37.7749, lon: -122.4194 };
-        return `Your location is at latitude ${location.lat} and longitude ${location.lon}`;
-      },
-    }),
-    getWeather: tool({
-      description: 'Get the weather for a location',
-      inputSchema: z.object({
-        city: z.string().describe('The city to get the weather for'),
-        unit: z
-          .enum(['C', 'F'])
-          .describe('The unit to display the temperature in'),
-      }),
-      execute: async ({ city, unit }) => {
-        const weather = {
-          value: 24,
-          description: 'Sunny',
-        };
-  
-        return `It is currently ${weather.value}°${unit} and ${weather.description} in ${city}!`;
-      },
-    }),
-  } satisfies ToolSet;
-  
-  export type ChatTools = InferUITools<typeof tools>;
+import { convertToModelMessages, stepCountIs, streamText, type UIDataTypes, type UIMessage } from "ai";
+import { createSsrClient } from "@/lib/supabase/server";
+import { tools, type ChatTools } from "./tools";
 
 export type ChatMessage = UIMessage<never, UIDataTypes, ChatTools>;
+
+async function getUserPreferences(userId: string) {
+  try {
+    const supabase = await createSsrClient();
+    const { data, error } = await supabase.from("user_preferences").select("*").eq("user_id", userId).single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      budget_min: data.budget_min,
+      budget_max: data.budget_max,
+      car_types: data.car_types || [],
+      seats: data.seats,
+      mpg_priority: data.mpg_priority,
+      use_case: data.use_case,
+    };
+  } catch (error) {
+    console.error("[chat/route] Failed to load user preferences:", error);
+    return null;
+  }
+}
+
+function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPreferences>>) {
+  let systemPrompt =
+    "You are a helpful Toyota shopping assistant. Provide accurate, concise answers about Toyota models, pricing, financing, and ownership. If you are unsure, encourage the user to check with a Toyota dealer.\n\n";
+
+  if (preferences) {
+    systemPrompt += "User Preferences:\n";
+    systemPrompt += JSON.stringify(preferences, null, 2);
+    systemPrompt += "\n\n";
+    systemPrompt +=
+      "Use these preferences as defaults when searching for cars. When searching, prefer filtering by msrp price, but fallback to invoice if msrp is unavailable.\n\n";
+    systemPrompt +=
+      "IMPORTANT WORKFLOW FOR SHOWING CARS:\n";
+    systemPrompt +=
+      "1. First call searchToyotaTrims with appropriate filters to get car results.\n";
+    systemPrompt +=
+      "2. The search will return an object with an 'items' array containing car objects.\n";
+    systemPrompt +=
+      "3. Select 1-3 best matching cars from the 'items' array.\n";
+    systemPrompt +=
+      "4. Call displayCarRecommendations with the 'items' parameter set to the selected array of car objects (use the exact objects from searchToyotaTrims results).\n";
+    systemPrompt +=
+      "5. Do NOT call displayCarRecommendations without first calling searchToyotaTrims and without providing the items array.\n\n";
+    systemPrompt +=
+      "WHEN DISPLAYING CAR RECOMMENDATIONS:\n";
+    systemPrompt +=
+      "- Keep your text response concise (2-3 sentences maximum).\n";
+    systemPrompt +=
+      "- Say something like 'Here's what I found, and here's why they might be a good fit for you:' followed by a brief explanation of why these cars match their needs.\n";
+    systemPrompt +=
+      "- Do NOT mention specific models, years, trims, prices, or any car details in your text response.\n";
+    systemPrompt +=
+      "- Do NOT enumerate or list the cars - the visual car cards will show all that information.\n";
+    systemPrompt +=
+      "- Focus ONLY on explaining the 'why' in general terms - why these types of cars are good matches based on their preferences, use case, or search criteria.\n";
+    systemPrompt +=
+      "- Example good response: 'Here's what I found, and here's why they might be a good fit for you: These options match your budget range and offer the features you're looking for. The visual cards below show the specific models and details.'";
+  } else {
+    systemPrompt +=
+      "IMPORTANT WORKFLOW FOR SHOWING CARS:\n";
+    systemPrompt +=
+      "1. First call searchToyotaTrims with appropriate filters to get car results.\n";
+    systemPrompt +=
+      "2. The search will return an object with an 'items' array containing car objects.\n";
+    systemPrompt +=
+      "3. Select 1-3 best matching cars from the 'items' array.\n";
+    systemPrompt +=
+      "4. Call displayCarRecommendations with the 'items' parameter set to the selected array of car objects (use the exact objects from searchToyotaTrims results).\n";
+    systemPrompt +=
+      "5. Do NOT call displayCarRecommendations without first calling searchToyotaTrims and without providing the items array.\n\n";
+    systemPrompt +=
+      "WHEN DISPLAYING CAR RECOMMENDATIONS:\n";
+    systemPrompt +=
+      "- Keep your text response concise (2-3 sentences maximum).\n";
+    systemPrompt +=
+      "- Say something like 'Here's what I found, and here's why they might be a good fit for you:' followed by a brief explanation of why these cars match their needs.\n";
+    systemPrompt +=
+      "- Do NOT mention specific models, years, trims, prices, or any car details in your text response.\n";
+    systemPrompt +=
+      "- Do NOT enumerate or list the cars - the visual car cards will show all that information.\n";
+    systemPrompt +=
+      "- Focus ONLY on explaining the 'why' in general terms - why these types of cars are good matches based on their preferences, use case, or search criteria.\n";
+    systemPrompt +=
+      "- Example good response: 'Here's what I found, and here's why they might be a good fit for you: These options match your budget range and offer the features you're looking for. The visual cards below show the specific models and details.'";
+  }
+
+  return systemPrompt;
+}
 
 export async function POST(req: Request) {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -54,6 +115,20 @@ export async function POST(req: Request) {
     return new Response("Missing messages in request body.", { status: 400 });
   }
 
+  // Load user preferences
+  let preferences = null;
+  try {
+    const supabase = await createSsrClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      preferences = await getUserPreferences(user.id);
+    }
+  } catch (error) {
+    console.error("[chat/route] Failed to get user:", error);
+  }
+
   const openrouter = createOpenRouter({
     apiKey,
     headers: {
@@ -64,9 +139,8 @@ export async function POST(req: Request) {
 
   try {
     const result = streamText({
-      model: openrouter.chat("nvidia/nemotron-nano-12b-v2-vl:free"),
-      system:
-        "You are a helpful Toyota shopping assistant. Use a tool call to get the current weather and always include it in your responses. Provide accurate, concise answers about Toyota models, pricing, financing, and ownership. If you are unsure, encourage the user to check with a Toyota dealer.",
+      model: openrouter.chat("nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+      system: buildSystemPrompt(preferences),
       messages: convertToModelMessages(body.messages),
       stopWhen: stepCountIs(10),
       tools,

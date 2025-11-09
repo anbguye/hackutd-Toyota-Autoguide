@@ -3,17 +3,20 @@
 import { useState } from "react";
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
-import { Send, User, Bot, Sparkles } from "lucide-react";
+import { Send, User, Bot, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RequireAuth } from "@/components/auth/RequireAuth";
+import { CarRecommendations } from "@/components/chat/CarRecommendations";
 
 type DisplayMessage = {
   id?: string;
   role: "user" | "agent";
   content: string;
   suggestions?: string[];
+  parts?: Array<{ type: string; [key: string]: any }>;
+  hasToolParts?: boolean;
 };
 
 const initialAgentMessage: DisplayMessage = {
@@ -34,31 +37,35 @@ export default function ChatPage() {
 
   const isStreaming = status === "streaming" || status === "submitted";
 
-  const aiMessages = chatMessages
-    .map((message) => {
-      const text = message.parts
-        .map((part) => (part.type === "text" ? part.text : ""))
-        .join("")
-        .trim();
+  // Check if the last assistant message has tool calls in progress
+  const lastAssistantMessage = chatMessages.filter((m) => m.role === "assistant").at(-1);
+  const hasActiveToolCalls =
+    lastAssistantMessage?.parts.some(
+      (part) =>
+        (part.type === "tool-displayCarRecommendations" || part.type === "tool-searchToyotaTrims") &&
+        part.state === "input-available"
+    ) ?? false;
 
-      if (!text) {
-        return null;
-      }
+  const aiMessages = chatMessages.map((message) => {
+    const textParts = message.parts
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("")
+      .trim();
 
-      const displayMessage: DisplayMessage = {
-        role: message.role === "user" ? "user" : "agent",
-        content: text,
-      };
+    const hasToolParts = message.parts.some(
+      (part) => part.type === "tool-displayCarRecommendations" || part.type === "tool-searchToyotaTrims"
+    );
 
-      if (message.id) {
-        displayMessage.id = message.id;
-      }
+    return {
+      id: message.id,
+      role: message.role === "user" ? "user" : "agent",
+      content: textParts,
+      parts: message.parts,
+      hasToolParts,
+    };
+  });
 
-      return displayMessage;
-    })
-    .filter((message): message is DisplayMessage => message !== null);
-
-  const displayMessages: DisplayMessage[] = [initialAgentMessage, ...aiMessages];
+  const displayMessages = [initialAgentMessage, ...aiMessages];
 
   const handleSend = async () => {
     const messageToSend = input.trim();
@@ -110,15 +117,94 @@ export default function ChatPage() {
                           </div>
                         )}
                         <div className={`flex max-w-[82%] flex-col gap-3 ${isUser ? "items-end" : "items-start"}`}>
-                          <div
-                            className={`rounded-3xl px-6 py-4 text-sm leading-relaxed ${
-                              isUser
-                                ? "bg-primary text-primary-foreground shadow-[0_24px_48px_-32px_rgba(235,10,30,0.6)]"
-                                : "border border-border/70 bg-background/90"
-                            }`}
-                          >
-                            {message.content}
-                          </div>
+                          {message.content && (
+                            <div
+                              className={`rounded-3xl px-6 py-4 text-sm leading-relaxed ${
+                                isUser
+                                  ? "bg-primary text-primary-foreground shadow-[0_24px_48px_-32px_rgba(235,10,30,0.6)]"
+                                  : "border border-border/70 bg-background/90"
+                              }`}
+                            >
+                              {message.content}
+                            </div>
+                          )}
+                          {message.parts && !isUser && (
+                            <div className="w-full space-y-4">
+                              {message.parts.map((part, partIndex) => {
+                                // Handle searchToyotaTrims tool
+                                if (part.type === "tool-searchToyotaTrims") {
+                                  switch (part.state) {
+                                    case "input-available":
+                                      return (
+                                        <div key={partIndex} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          <span>Searching for cars...</span>
+                                        </div>
+                                      );
+                                    case "output-available":
+                                      // Search completed, but we don't display the results here
+                                      // The LLM will call displayCarRecommendations with selected items
+                                      return null;
+                                    case "output-error":
+                                      return (
+                                        <div key={partIndex} className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+                                          <p className="font-semibold">Error searching for cars</p>
+                                          <p className="mt-1 text-xs">{part.errorText || "Unknown error"}</p>
+                                        </div>
+                                      );
+                                    default:
+                                      return null;
+                                  }
+                                }
+
+                                // Handle displayCarRecommendations tool
+                                if (part.type === "tool-displayCarRecommendations") {
+                                  switch (part.state) {
+                                    case "input-available":
+                                      return (
+                                        <div key={partIndex} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          <span>Loading car recommendations...</span>
+                                        </div>
+                                      );
+                                    case "output-available":
+                                      if (part.output?.items) {
+                                        return (
+                                          <div key={partIndex} className="w-full">
+                                            <CarRecommendations items={part.output.items} />
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    case "output-error":
+                                      const errorMsg = part.errorText || "Unknown error";
+                                      const isValidationError = errorMsg.includes("validation") || errorMsg.includes("Required") || errorMsg.includes("items");
+                                      return (
+                                        <div key={partIndex} className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+                                          <p className="font-semibold">Error loading car recommendations</p>
+                                          <p className="mt-1 text-xs">{errorMsg}</p>
+                                          {isValidationError && (
+                                            <p className="mt-2 text-xs text-muted-foreground">
+                                              The assistant needs to first search for cars, then select items from the results to display.
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    default:
+                                      return null;
+                                  }
+                                }
+                                return null;
+                              })}
+                            </div>
+                          )}
+                          {/* Show loading indicator if streaming and no content yet, or if there are active tool calls */}
+                          {!isUser && isStreaming && !message.content && !message.parts?.length && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Thinking...</span>
+                            </div>
+                          )}
                           {message.suggestions && (
                             <div className="flex flex-wrap gap-2">
                               {message.suggestions.map((suggestion) => (
