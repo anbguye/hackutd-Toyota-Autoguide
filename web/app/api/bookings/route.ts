@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSsrClient } from "@/lib/supabase/server"
 
 type VehicleDetails = {
-  make: string
-  model: string
-  year: number
-  submodel?: string | null
+  trimId: number
+  make?: string | null
+  model?: string | null
+  year?: number | null
   trim?: string | null
 }
 
@@ -21,13 +21,6 @@ type BookingPayload = {
 
 export async function POST(request: Request) {
   try {
-    const authorizationHeader = request.headers.get("authorization")
-
-    if (!authorizationHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ message: "Missing or invalid authorization token." }, { status: 401 })
-    }
-
-    const accessToken = authorizationHeader.replace("Bearer", "").trim()
     const payload = (await request.json()) as BookingPayload | null
 
     if (!payload) {
@@ -48,36 +41,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Booking date and time are required." }, { status: 400 })
     }
 
-    if (!vehicle?.make || !vehicle?.model || !vehicle?.year) {
-      return NextResponse.json({ message: "Vehicle make, model, and year are required." }, { status: 400 })
+    if (!vehicle) {
+      return NextResponse.json({ message: "Vehicle details are required." }, { status: 400 })
     }
 
-    const supabase = createSupabaseServerClient()
+    const trimId = Number(vehicle.trimId)
+
+    if (!Number.isInteger(trimId) || trimId <= 0) {
+      return NextResponse.json({ message: "A valid trim_id must be provided." }, { status: 400 })
+    }
+
+    const supabase = await createSsrClient();
     const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser(accessToken)
+      data: { user: cookieUser },
+      error: cookieUserError,
+    } = await supabase.auth.getUser();
+
+    let user = cookieUser
+    let userError = cookieUserError
+
+    if (!user) {
+      const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization")
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null
+
+      if (token) {
+        const {
+          data: { user: headerUser },
+          error: headerError,
+        } = await supabase.auth.getUser(token)
+
+        if (headerUser) {
+          user = headerUser
+          userError = null
+        } else {
+          userError = headerError
+        }
+      }
+    }
 
     if (userError || !user) {
+      if (userError) {
+        console.error("Failed to verify user:", userError)
+      }
       return NextResponse.json({ message: "Unable to verify user." }, { status: 401 })
     }
 
-    let carQuery = supabase
+    const { data: car, error: carError } = await supabase
       .from("toyota_trim_specs")
       .select("trim_id")
-      .eq("make", vehicle.make)
-      .eq("model", vehicle.model)
-      .eq("year", vehicle.year)
-
-    if (vehicle.submodel) {
-      carQuery = carQuery.eq("submodel", vehicle.submodel)
-    }
-
-    if (vehicle.trim) {
-      carQuery = carQuery.eq("trim", vehicle.trim)
-    }
-
-    const { data: car, error: carError } = await carQuery.maybeSingle()
+      .eq("trim_id", trimId)
+      .maybeSingle()
 
     if (carError) {
       console.error("Failed to locate car:", carError)
@@ -104,11 +117,10 @@ export async function POST(request: Request) {
       contact_name: contactName,
       contact_email: contactEmail,
       contact_phone: contactPhone,
-      vehicle_make: vehicle.make,
-      vehicle_model: vehicle.model,
-      vehicle_year: vehicle.year,
-      vehicle_submodel: vehicle.submodel,
-      vehicle_trim: vehicle.trim,
+      vehicle_make: vehicle.make ?? null,
+      vehicle_model: vehicle.model ?? null,
+      vehicle_year: typeof vehicle.year === "number" ? vehicle.year : null,
+      vehicle_trim: vehicle.trim ?? null,
     }
 
     const { data: booking, error: insertError } = await supabase

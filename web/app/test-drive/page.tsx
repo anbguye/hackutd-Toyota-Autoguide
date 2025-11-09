@@ -36,12 +36,22 @@ const LOCATION_OPTIONS: LocationOption[] = [
 const TIME_SLOTS = generateTimeSlots(9, 18, 30)
 
 type VehicleParams = {
+  trimId: number | null
   make: string | null
   model: string | null
   year: number | null
-  submodel: string | null
   trim: string | null
 }
+
+type VehicleDetails = {
+  trimId: number
+  make: string | null
+  model: string | null
+  year: number | null
+  trim: string | null
+}
+
+type VehicleSummaryValues = Pick<VehicleParams, "make" | "model" | "year" | "trim">
 
 type LocationOption = {
   value: string
@@ -58,17 +68,94 @@ function TestDrivePageContent() {
   const searchParams = useSearchParams()
 
   const vehicleParams = useMemo<VehicleParams>(() => {
-    const year = searchParams.get("year")
+    const yearParam = searchParams.get("year")
+    const trimIdParam = searchParams.get("trim_id")
+
+    const parsedYear = yearParam ? Number(yearParam) : NaN
+    const year = Number.isFinite(parsedYear) ? parsedYear : null
+
+    const parsedTrimId = trimIdParam ? Number.parseInt(trimIdParam, 10) : NaN
+    const trimId = Number.isFinite(parsedTrimId) ? parsedTrimId : null
+
     return {
+      trimId,
       make: searchParams.get("make"),
       model: searchParams.get("model"),
-      year: year ? Number(year) : null,
-      submodel: searchParams.get("submodel"),
+      year,
       trim: searchParams.get("trim"),
     }
   }, [searchParams])
 
-  const vehicleSummary = useMemo(() => formatVehicleSummary(vehicleParams), [vehicleParams])
+  const [fetchedVehicle, setFetchedVehicle] = useState<VehicleDetails | null>(null)
+  const [isVehicleLoading, setIsVehicleLoading] = useState(false)
+  const [vehicleFetchError, setVehicleFetchError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!vehicleParams.trimId) {
+      setFetchedVehicle(null)
+      setVehicleFetchError(null)
+      setIsVehicleLoading(false)
+      return
+    }
+
+    let isCancelled = false
+
+    const loadVehicle = async () => {
+      setIsVehicleLoading(true)
+      setVehicleFetchError(null)
+
+      const { data, error } = await supabase
+        .from("toyota_trim_specs")
+        .select("trim_id, model_year, make, model, trim")
+        .eq("trim_id", vehicleParams.trimId)
+        .maybeSingle()
+
+      if (isCancelled) {
+        return
+      }
+
+      if (error) {
+        console.error("Failed to load vehicle details for trim:", error)
+        setFetchedVehicle(null)
+        setVehicleFetchError("Unable to load vehicle details. Please return to browse and select a vehicle again.")
+      } else if (!data) {
+        setFetchedVehicle(null)
+        setVehicleFetchError("Vehicle details were not found. Please return to browse and select a vehicle again.")
+      } else {
+        setFetchedVehicle({
+          trimId: data.trim_id,
+          make: data.make ?? null,
+          model: data.model ?? null,
+          year: typeof data.model_year === "number" ? data.model_year : null,
+          trim: data.trim ?? null,
+        })
+      }
+
+      setIsVehicleLoading(false)
+    }
+
+    void loadVehicle()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [vehicleParams.trimId])
+
+  const displayMake = fetchedVehicle?.make ?? vehicleParams.make
+  const displayModel = fetchedVehicle?.model ?? vehicleParams.model
+  const displayYear = fetchedVehicle?.year ?? vehicleParams.year
+  const displayTrim = fetchedVehicle?.trim ?? vehicleParams.trim
+
+  const vehicleSummary = useMemo(
+    () =>
+      formatVehicleSummary({
+        make: displayMake,
+        model: displayModel,
+        year: displayYear,
+        trim: displayTrim,
+      }),
+    [displayMake, displayModel, displayYear, displayTrim]
+  )
 
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
@@ -142,7 +229,8 @@ function TestDrivePageContent() {
       return
     }
 
-    if (!vehicleParams.make || !vehicleParams.model || !vehicleParams.year) {
+    const trimId = fetchedVehicle?.trimId ?? vehicleParams.trimId
+    if (!trimId) {
       setErrorMessage("Vehicle details are missing. Please choose a vehicle before scheduling.")
       return
     }
@@ -172,11 +260,11 @@ function TestDrivePageContent() {
           preferredLocation: location,
           bookingDateTime: bookingDateISO,
           vehicle: {
-            make: vehicleParams.make,
-            model: vehicleParams.model,
-            year: vehicleParams.year,
-            submodel: vehicleParams.submodel,
-            trim: vehicleParams.trim,
+            trimId,
+            make: displayMake,
+            model: displayModel,
+            year: typeof displayYear === "number" ? displayYear : null,
+            trim: displayTrim,
           },
         }),
       })
@@ -210,10 +298,6 @@ function TestDrivePageContent() {
     return (
       <RequireAuth>
         <div className="flex min-h-full flex-col bg-background text-foreground">
-          <div className="toyota-container flex justify-end pt-6">
-            <LogoutButton />
-          </div>
-
           <div className="flex flex-1 items-center justify-center px-4 py-16">
             <div className="w-full max-w-2xl space-y-10 rounded-[2.5rem] border border-border/70 bg-card/70 p-10 text-center shadow-[0_32px_80px_-72px_rgba(15,20,26,0.85)] backdrop-blur">
               <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -270,10 +354,6 @@ function TestDrivePageContent() {
   return (
     <RequireAuth>
       <div className="flex min-h-full flex-col bg-background text-foreground">
-        <div className="toyota-container flex justify-end pt-6">
-          <LogoutButton />
-        </div>
-
         <div className="flex-1 px-4 py-12">
           <div className="toyota-container space-y-12">
             <div className="space-y-3">
@@ -430,7 +510,15 @@ function TestDrivePageContent() {
                   </div>
                 </div>
 
-                {vehicleSummary ? (
+                {isVehicleLoading ? (
+                  <div className="rounded-4xl border border-border/70 bg-card/80 p-6 text-sm text-secondary shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
+                    Loading selected vehicle details...
+                  </div>
+                ) : vehicleFetchError ? (
+                  <div className="rounded-4xl border border-rose-500/40 bg-card/80 p-6 text-sm text-rose-500 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
+                    {vehicleFetchError}
+                  </div>
+                ) : vehicleSummary ? (
                   <div className="rounded-4xl border border-border/70 bg-card/80 p-6 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
                     <Label className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
                       Selected vehicle
@@ -526,7 +614,7 @@ function formatTimeSlot(slot: string) {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date)
 }
 
-function formatVehicleSummary(vehicle: VehicleParams) {
+function formatVehicleSummary(vehicle: VehicleSummaryValues) {
   if (!vehicle.make || !vehicle.model) {
     return ""
   }
@@ -535,7 +623,6 @@ function formatVehicleSummary(vehicle: VehicleParams) {
     vehicle.year ? vehicle.year.toString() : null,
     vehicle.make,
     vehicle.model,
-    vehicle.submodel,
     vehicle.trim,
   ].filter(Boolean)
 

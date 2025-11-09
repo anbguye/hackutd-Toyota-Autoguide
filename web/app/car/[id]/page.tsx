@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 type VehicleForBooking = {
+  trimId: number
   make: string
   model: string
   year: number
@@ -189,6 +190,7 @@ export default async function CarDetailPage({
   }
 
   const car: CarDetail = {
+    trimId: trimSpec.trim_id,
     make: trimSpec.make,
     model: trimSpec.model,
     year: trimSpec.model_year,
@@ -218,7 +220,7 @@ export default async function CarDetailPage({
     car.msrp,
     car.horsepower || 150,
     car.type,
-    trimSpec.body_doors,
+    car.seats,
     car.mpg.city
   )
   const financing = calculateFinancingOptions(car.msrp)
@@ -523,12 +525,10 @@ function OwnershipRow({ label, value, accent }: OwnershipRowProps) {
 
 function buildTestDriveHref(vehicle: VehicleForBooking) {
   const params = new URLSearchParams()
+  params.set("trim_id", vehicle.trimId.toString())
   params.set("make", vehicle.make)
   params.set("model", vehicle.model)
   params.set("year", vehicle.year.toString())
-  if (vehicle.submodel) {
-    params.set("submodel", vehicle.submodel)
-  }
   if (vehicle.trim) {
     params.set("trim", vehicle.trim)
   }
