@@ -105,8 +105,7 @@ export default function QuizPage() {
             setPreferenceId(data.id)
           }
           if (typeof data.budget_max === "number") {
-            const dollars = Math.round(data.budget_max / 100)
-            setBudgetMax(Math.min(BUDGET_MAX, Math.max(BUDGET_MIN, dollars)))
+            setBudgetMax(Math.min(BUDGET_MAX, Math.max(BUDGET_MIN, data.budget_max)))
           }
           if (Array.isArray(data.car_types)) {
             const savedStyle = data.car_types[0]?.toLowerCase()
@@ -187,8 +186,8 @@ export default function QuizPage() {
 
       const payload = {
         user_id: currentUserId,
-        budget_min: BUDGET_MIN * 100,
-        budget_max: budgetMax * 100,
+        budget_min: BUDGET_MIN,
+        budget_max: budgetMax,
         car_types: bodyStyle === "any" ? [] : [bodyStyle],
         seats: Number(seatPreference),
         use_case: primaryUseCase,
