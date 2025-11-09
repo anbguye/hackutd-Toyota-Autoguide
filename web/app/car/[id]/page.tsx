@@ -10,8 +10,31 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-const car = {
-  name: "RAV4 Hybrid",
+type VehicleForBooking = {
+  make: string
+  model: string
+  year: number
+  submodel?: string | null
+  trim?: string | null
+}
+
+type CarDetail = VehicleForBooking & {
+  name: string
+  type: string
+  seats: number
+  mpg: { city: number; highway: number }
+  msrp: number
+  drive: string
+  powertrain: string
+  image: string
+}
+
+const car: CarDetail = {
+  make: "Toyota",
+  model: "RAV4",
+  submodel: "Hybrid",
+  trim: "XSE",
+  name: "RAV4 Hybrid XSE",
   year: 2025,
   type: "SUV",
   seats: 5,
@@ -35,6 +58,8 @@ const financing = [
 ]
 
 export default function CarDetailPage() {
+  const testDriveHref = buildTestDriveHref(car)
+
   return (
     <div className="flex min-h-full flex-col bg-background text-foreground">
       <div className="flex-1 space-y-16 pb-24">
@@ -45,9 +70,9 @@ export default function CarDetailPage() {
           </Link>
 
           <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card/80 shadow-[0_32px_75px_-60px_rgba(15,20,26,0.8)]">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-transparent to-secondary/20" />
-              <div className="relative aspect-[4/3]">
+            <div className="relative overflow-hidden rounded-4xl border border-border/70 bg-card/80 shadow-[0_32px_75px_-60px_rgba(15,20,26,0.8)]">
+              <div className="absolute inset-0 bg-linear-to-br from-primary/15 via-transparent to-secondary/20" />
+              <div className="relative aspect-4/3">
                 <Image
                   src={car.image || "/placeholder.svg"}
                   alt={car.name}
@@ -97,7 +122,7 @@ export default function CarDetailPage() {
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <Link href="/test-drive" className="flex-1 min-w-[220px]">
+                <Link href={testDriveHref} className="flex-1 min-w-[220px]">
                   <Button className="h-12 w-full rounded-full px-6 text-sm font-semibold shadow-[0_24px_48px_-32px_rgba(235,10,30,0.7)]">
                     <Calendar className="mr-2 h-4 w-4" />
                     Schedule test drive
@@ -193,7 +218,7 @@ export default function CarDetailPage() {
                   <OwnershipRow label="Car payment" value="$671/mo" />
                   <OwnershipRow label="Insurance" value="$145/mo" />
                   <OwnershipRow label="Maintenance reserve" value="$45/mo" />
-                  <div className="h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+                  <div className="h-px bg-linear-to-r from-transparent via-primary/60 to-transparent" />
                   <OwnershipRow label="Total" value="$861/mo" accent />
                 </div>
               </div>
@@ -331,3 +356,18 @@ function OwnershipRow({ label, value, accent }: OwnershipRowProps) {
     </div>
   )
 }
+
+function buildTestDriveHref(vehicle: VehicleForBooking) {
+  const params = new URLSearchParams()
+  params.set("make", vehicle.make)
+  params.set("model", vehicle.model)
+  params.set("year", vehicle.year.toString())
+  if (vehicle.submodel) {
+    params.set("submodel", vehicle.submodel)
+  }
+  if (vehicle.trim) {
+    params.set("trim", vehicle.trim)
+  }
+  return `/test-drive?${params.toString()}`
+}
+

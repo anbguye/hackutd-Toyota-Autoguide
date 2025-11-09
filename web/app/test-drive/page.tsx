@@ -1,29 +1,212 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { ArrowLeft, Car, Check, Clock, MapPin } from "lucide-react"
+import type { Session } from "@supabase/supabase-js"
 
-import { ToyotaFooter } from "@/components/layout/toyota-footer"
 import { RequireAuth } from "@/components/auth/RequireAuth"
 import { LogoutButton } from "@/components/auth/LogoutButton"
+import { ToyotaFooter } from "@/components/layout/toyota-footer"
 import { Button } from "@/components/ui/button"
 import { Calendar as DateCalendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { supabase } from "@/lib/supabase/client"
+import { cn } from "@/lib/utils"
+
+const LOCATION_OPTIONS: LocationOption[] = [
+  {
+    value: "downtown",
+    label: "Downtown Toyota — 123 Main St, Dallas, TX",
+  },
+  {
+    value: "north",
+    label: "North Dallas Toyota — 456 North Rd, Dallas, TX",
+  },
+  {
+    value: "south",
+    label: "South Toyota Center — 789 South Ave, Dallas, TX",
+  },
+]
+
+const TIME_SLOTS = generateTimeSlots(9, 18, 30)
+
+type VehicleParams = {
+  make: string | null
+  model: string | null
+  year: number | null
+  submodel: string | null
+  trim: string | null
+}
+
+type LocationOption = {
+  value: string
+  label: string
+}
+
+type ConfirmationDetails = {
+  bookingDateTime: string
+  location: LocationOption
+  vehicleSummary: string
+}
 
 export default function TestDrivePage() {
-  const [date, setDate] = useState<Date | undefined>(new Date())
-  const [submitted, setSubmitted] = useState(false)
+  const searchParams = useSearchParams()
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitted(true)
+  const vehicleParams = useMemo<VehicleParams>(() => {
+    const year = searchParams.get("year")
+    return {
+      make: searchParams.get("make"),
+      model: searchParams.get("model"),
+      year: year ? Number(year) : null,
+      submodel: searchParams.get("submodel"),
+      trim: searchParams.get("trim"),
+    }
+  }, [searchParams])
+
+  const vehicleSummary = useMemo(() => formatVehicleSummary(vehicleParams), [vehicleParams])
+
+  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [location, setLocation] = useState<string>(LOCATION_OPTIONS[0]?.value ?? "")
+  const [session, setSession] = useState<Session | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [confirmation, setConfirmation] = useState<ConfirmationDetails | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (!isMounted) return
+
+      setSession(data.session ?? null)
+
+      const metadataName = (data.session?.user.user_metadata?.full_name as string | undefined) ?? ""
+      const sessionEmail = data.session?.user.email ?? ""
+      const sessionPhone = (data.session?.user.user_metadata?.phone as string | undefined) ?? ""
+
+      if (metadataName) {
+        setFullName((prev) => (prev ? prev : metadataName))
+      }
+      if (sessionEmail) {
+        setEmail((prev) => (prev ? prev : sessionEmail))
+      }
+      if (sessionPhone) {
+        setPhone((prev) => (prev ? prev : sessionPhone))
+      }
+    }
+
+    loadSession()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const isSlotDisabled = useCallback(
+    (slot: string) => {
+      if (!date) return true
+      const slotDate = combineDateAndSlot(date, slot)
+      const now = new Date()
+      return slotDate.getTime() < now.getTime()
+    },
+    [date]
+  )
+
+  useEffect(() => {
+    if (selectedSlot && isSlotDisabled(selectedSlot)) {
+      setSelectedSlot(null)
+    }
+  }, [selectedSlot, isSlotDisabled])
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setErrorMessage(null)
+
+    if (!date) {
+      setErrorMessage("Please select a date for your test drive.")
+      return
+    }
+
+    if (!selectedSlot) {
+      setErrorMessage("Please choose a start time.")
+      return
+    }
+
+    if (!vehicleParams.make || !vehicleParams.model || !vehicleParams.year) {
+      setErrorMessage("Vehicle details are missing. Please choose a vehicle before scheduling.")
+      return
+    }
+
+    if (!session?.access_token) {
+      setErrorMessage("Your session expired. Please sign in again.")
+      return
+    }
+
+    const bookingDate = combineDateAndSlot(date, selectedSlot)
+    const bookingDateISO = bookingDate.toISOString()
+    const selectedLocation = LOCATION_OPTIONS.find((option) => option.value === location) ?? LOCATION_OPTIONS[0]
+
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch("/api/bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          contactName: fullName,
+          contactEmail: email,
+          contactPhone: phone,
+          preferredLocation: location,
+          bookingDateTime: bookingDateISO,
+          vehicle: {
+            make: vehicleParams.make,
+            model: vehicleParams.model,
+            year: vehicleParams.year,
+            submodel: vehicleParams.submodel,
+            trim: vehicleParams.trim,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        throw new Error(errorBody?.message ?? "Unable to schedule your test drive.")
+      }
+
+      const body = (await response.json()) as { booking?: { booking_date?: string; preferred_location?: string } }
+      const normalizedDate = body.booking?.booking_date ?? bookingDateISO
+
+      setConfirmation({
+        bookingDateTime: normalizedDate,
+        location: selectedLocation,
+        vehicleSummary: vehicleSummary || "Selected Toyota model",
+      })
+    } catch (error) {
+      console.error("Failed to submit booking:", error)
+      setErrorMessage(error instanceof Error ? error.message : "Unable to schedule your test drive. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  if (submitted) {
+  if (confirmation) {
+    const appointmentDate = new Date(confirmation.bookingDateTime)
+    const appointmentDateLabel = new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(appointmentDate)
+    const appointmentTimeLabel = new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(appointmentDate)
+
     return (
       <RequireAuth>
         <div className="flex min-h-full flex-col bg-background text-foreground">
@@ -51,13 +234,13 @@ export default function TestDrivePage() {
                 </h3>
                 <div className="mt-6 space-y-4 text-sm text-secondary">
                   <DetailRow icon={<MapPin className="h-4 w-4" />} label="Dealership">
-                    Downtown Toyota — 123 Main St, Dallas, TX
+                    {confirmation.location.label}
                   </DetailRow>
                   <DetailRow icon={<Clock className="h-4 w-4" />} label="Time">
-                    {date?.toLocaleDateString()} at 2:00 PM
+                    {appointmentDateLabel} at {appointmentTimeLabel}
                   </DetailRow>
                   <DetailRow icon={<Car className="h-4 w-4" />} label="Vehicle">
-                    2025 Toyota RAV4 Hybrid
+                    {confirmation.vehicleSummary}
                   </DetailRow>
                 </div>
               </div>
@@ -111,7 +294,7 @@ export default function TestDrivePage() {
             </div>
 
             <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="rounded-[2rem] border border-border/70 bg-card/80 p-8 shadow-[0_28px_70px_-64px_rgba(15,20,26,0.8)] backdrop-blur">
+              <div className="rounded-4xl border border-border/70 bg-card/80 p-8 shadow-[0_28px_70px_-64px_rgba(15,20,26,0.8)] backdrop-blur">
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm font-semibold text-secondary">
@@ -122,6 +305,8 @@ export default function TestDrivePage() {
                       placeholder="Jordan Reyes"
                       required
                       className="h-12 rounded-full border-border/70 bg-background/70 px-5"
+                      value={fullName}
+                      onChange={(event) => setFullName(event.target.value)}
                     />
                   </div>
 
@@ -135,6 +320,8 @@ export default function TestDrivePage() {
                       placeholder="you@example.com"
                       required
                       className="h-12 rounded-full border-border/70 bg-background/70 px-5"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
                     />
                   </div>
 
@@ -148,6 +335,8 @@ export default function TestDrivePage() {
                       placeholder="(555) 123-4567"
                       required
                       className="h-12 rounded-full border-border/70 bg-background/70 px-5"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
                     />
                   </div>
 
@@ -155,7 +344,7 @@ export default function TestDrivePage() {
                     <Label htmlFor="location" className="text-sm font-semibold text-secondary">
                       Preferred dealership
                     </Label>
-                    <Select defaultValue="downtown">
+                    <Select value={location} onValueChange={setLocation}>
                       <SelectTrigger
                         id="location"
                         className="h-12 rounded-full border-border/70 bg-background/70 px-5 text-sm"
@@ -163,49 +352,39 @@ export default function TestDrivePage() {
                         <SelectValue placeholder="Choose dealership" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="downtown">Downtown Toyota — 123 Main St</SelectItem>
-                        <SelectItem value="north">North Dallas Toyota — 456 North Rd</SelectItem>
-                        <SelectItem value="south">South Toyota Center — 789 South Ave</SelectItem>
+                        {LOCATION_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="time" className="text-sm font-semibold text-secondary">
-                      Preferred time
-                    </Label>
-                    <Select defaultValue="afternoon">
-                      <SelectTrigger
-                        id="time"
-                        className="h-12 rounded-full border-border/70 bg-background/70 px-5 text-sm"
-                      >
-                        <SelectValue placeholder="Select time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="morning">Morning (9AM - 12PM)</SelectItem>
-                        <SelectItem value="afternoon">Afternoon (12PM - 5PM)</SelectItem>
-                        <SelectItem value="evening">Evening (5PM - 8PM)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {errorMessage ? (
+                    <p className="text-sm font-semibold text-rose-500">{errorMessage}</p>
+                  ) : null}
 
                   <Button
                     type="submit"
                     className="h-12 w-full rounded-full text-sm font-semibold shadow-[0_24px_48px_-32px_rgba(235,10,30,0.6)]"
+                    disabled={isSubmitting}
                   >
-                    Confirm test drive
+                    {isSubmitting ? "Scheduling..." : "Confirm test drive"}
                   </Button>
                 </form>
               </div>
 
               <div className="space-y-6">
-                <div className="rounded-[2rem] border border-border/70 bg-card/80 p-6 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
-                  <Label className="text-sm font-semibold text-secondary">Select date</Label>
+                <div className="rounded-4xl border border-border/70 bg-card/80 p-6 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
+                  <Label className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                    Step 1 — Select date
+                  </Label>
                   <div className="mt-4 rounded-2xl border border-border/60 bg-background/80 p-3">
                     <DateCalendar
                       mode="single"
                       selected={date}
-                      onSelect={setDate}
+                      onSelect={(selectedDate) => setDate(selectedDate)}
                       className="rounded-lg border-0"
                       disabled={(day) => {
                         const today = new Date()
@@ -216,7 +395,55 @@ export default function TestDrivePage() {
                   </div>
                 </div>
 
-                <div className="rounded-[2rem] border border-border/70 bg-card/80 p-6 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
+                <div className="rounded-4xl border border-border/70 bg-card/80 p-6 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
+                  <Label className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                    Step 2 — Choose exact time
+                  </Label>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Slots update based on your selected date. Pick a precise start time in 30-minute increments.
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {TIME_SLOTS.map((slot) => {
+                      const disabled = isSlotDisabled(slot)
+                      return (
+                        <button
+                          type="button"
+                          key={slot}
+                          onClick={() => {
+                            if (!disabled) {
+                              setSelectedSlot(slot)
+                            }
+                          }}
+                          disabled={disabled}
+                          className={cn(
+                            "rounded-full border px-4 py-2 text-sm font-semibold transition",
+                            disabled
+                              ? "cursor-not-allowed border-border/40 text-muted-foreground/60"
+                              : "border-border/60 text-secondary hover:border-primary/60 hover:text-primary",
+                            selectedSlot === slot ? "border-primary bg-primary/10 text-primary" : ""
+                          )}
+                        >
+                          {formatTimeSlot(slot)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {vehicleSummary ? (
+                  <div className="rounded-4xl border border-border/70 bg-card/80 p-6 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
+                    <Label className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                      Selected vehicle
+                    </Label>
+                    <p className="mt-3 text-sm text-secondary">{vehicleSummary}</p>
+                  </div>
+                ) : (
+                  <div className="rounded-4xl border border-dashed border-border/60 bg-card/60 p-6 text-sm text-muted-foreground">
+                    No vehicle selected. Return to browse to choose a Toyota to test drive.
+                  </div>
+                )}
+
+                <div className="rounded-4xl border border-border/70 bg-card/80 p-6 shadow-[0_24px_58px_-56px_rgba(15,20,26,0.75)]">
                   <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">
                     What to expect
                   </h3>
@@ -229,7 +456,7 @@ export default function TestDrivePage() {
                       "Vehicle prepped with your preferred trim",
                     ].map((item) => (
                       <li key={item} className="flex items-start gap-3">
-                        <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                         <span>{item}</span>
                       </li>
                     ))}
@@ -263,3 +490,46 @@ function DetailRow({ icon, label, children }: DetailRowProps) {
     </div>
   )
 }
+
+function generateTimeSlots(startHour: number, endHourExclusive: number, intervalMinutes: number) {
+  const slots: string[] = []
+  for (let hour = startHour; hour < endHourExclusive; hour++) {
+    for (let minute = 0; minute < 60; minute += intervalMinutes) {
+      const formattedHour = hour.toString().padStart(2, "0")
+      const formattedMinute = minute.toString().padStart(2, "0")
+      slots.push(`${formattedHour}:${formattedMinute}`)
+    }
+  }
+  return slots
+}
+
+function formatTimeSlot(slot: string) {
+  const [hour, minute] = slot.split(":").map(Number)
+  const date = new Date()
+  date.setHours(hour, minute, 0, 0)
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date)
+}
+
+function formatVehicleSummary(vehicle: VehicleParams) {
+  if (!vehicle.make || !vehicle.model) {
+    return ""
+  }
+
+  const parts = [
+    vehicle.year ? vehicle.year.toString() : null,
+    vehicle.make,
+    vehicle.model,
+    vehicle.submodel,
+    vehicle.trim,
+  ].filter(Boolean)
+
+  return parts.join(" ")
+}
+
+function combineDateAndSlot(date: Date, slot: string) {
+  const [hour, minute] = slot.split(":").map(Number)
+  const combined = new Date(date.getTime())
+  combined.setHours(hour, minute, 0, 0)
+  return combined
+}
+
