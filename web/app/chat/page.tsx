@@ -24,7 +24,8 @@ export default function ChatPage() {
 
   // Initialize with welcome message if chat is empty
   useEffect(() => {
-    if (messages.length === 0) {
+    const currentMessages = messages
+    if (currentMessages.length === 0) {
       const welcomeMessage: ChatMessage = {
         role: "agent",
         content:
@@ -38,7 +39,8 @@ export default function ChatPage() {
       }
       addMessage(welcomeMessage)
     }
-  }, [messages.length, addMessage])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
@@ -77,11 +79,18 @@ export default function ChatPage() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || errorData.message || "Failed to get response")
+        const errorData = await response.json().catch(() => ({ error: "Failed to parse error response" }))
+        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`
+        console.error("[CHAT] API Error:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        })
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
+      console.log("[CHAT] API Response:", data)
 
       // Add agent response to chat
       const agentMsg: ChatMessage = {
@@ -144,9 +153,17 @@ export default function ChatPage() {
               </div>
             </div>
 
-            <div className="relative flex-1 overflow-hidden rounded-[2rem] border border-border/70 bg-card/60 backdrop-blur">
-              <ScrollArea className="h-full p-8">
-                <div className="space-y-6">
+            <div className="relative flex-1 flex flex-col overflow-hidden rounded-[2rem] border border-border/70 bg-card/60 backdrop-blur">
+              <ScrollArea className="flex-1 p-8">
+                <div className="space-y-6 min-h-full">
+                  {messages.length === 0 && (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center text-muted-foreground">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                        <p>Loading chat...</p>
+                      </div>
+                    </div>
+                  )}
                   {messages.map((message, i) => {
                     const isUser = message.role === "user"
                     return (
@@ -235,20 +252,22 @@ export default function ChatPage() {
                 </div>
               </ScrollArea>
 
-              <div className="border-t border-border/60 bg-background/80 px-6 py-4">
+              <div className="border-t border-border/60 bg-background/80 px-6 py-4 flex-shrink-0">
                 {error && (
                   <div className="mb-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
                     {error}
                   </div>
                 )}
-                <div className="flex gap-3">
+                <div className="flex gap-3 items-center">
                   <Input
+                    type="text"
                     placeholder="Ask about Toyota models, deals, or ownership..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && !isLoading && handleSend()}
-                    className="h-12 flex-1 rounded-full border-border/70 bg-card/80 px-5"
+                    className="h-12 flex-1 rounded-full border-border/70 bg-card/80 px-5 text-foreground"
                     disabled={isLoading}
+                    autoFocus
                   />
                   <Button
                     onClick={handleSend}
