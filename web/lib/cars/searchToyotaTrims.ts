@@ -207,6 +207,7 @@ export async function searchToyotaTrims(
   });
 
   // Post-process: if budget filters were applied, filter by msrp/invoice fallback
+  // NOTE: budgetMin/budgetMax and msrp/invoice are both in DOLLARS now
   if (input.budgetMin !== undefined || input.budgetMax !== undefined) {
     items = items.filter((item) => {
       const price = item.msrp ?? item.invoice;
