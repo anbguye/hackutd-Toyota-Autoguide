@@ -28,6 +28,7 @@ import { SpeechRecognitionManager } from "@/lib/voice/speechRecognition";
 import { SpeechSynthesisManager } from "@/lib/voice/speechSynthesis";
 import { SilenceDetector } from "@/lib/voice/silenceDetector";
 import { toast } from "sonner";
+import Image from "next/image";
 
 type DisplayMessage = {
   id?: string;
@@ -1389,9 +1390,12 @@ export default function ChatPage() {
                   </p>
                 )}
                 {!error && (
-                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                  <span className="flex items-center justify-center gap-2 mt-2">
+                    <Image src="/nvidia.svg" alt="NVIDIA" width={20} height={20} />
+                    <p className="text-center text-xs text-muted-foreground">
                     Powered by NVIDIA Nemotron™
                   </p>
+                  </span>
                 )}
               </div>
             </div>
