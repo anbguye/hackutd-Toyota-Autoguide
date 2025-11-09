@@ -274,11 +274,10 @@ function TestDrivePageContent() {
         throw new Error(errorBody?.message ?? "Unable to schedule your test drive.")
       }
 
-      const body = (await response.json()) as { booking?: { booking_date?: string; preferred_location?: string } }
-      const normalizedDate = body.booking?.booking_date ?? bookingDateISO
-
+      // Always use the original bookingDateISO for the confirmation page
+      // to ensure timezone is correctly preserved (API response may not include timezone info)
       setConfirmation({
-        bookingDateTime: normalizedDate,
+        bookingDateTime: bookingDateISO,
         location: selectedLocation,
         vehicleSummary: vehicleSummary || "Selected Toyota model",
       })
@@ -631,8 +630,12 @@ function formatVehicleSummary(vehicle: VehicleSummaryValues) {
 
 function combineDateAndSlot(date: Date, slot: string) {
   const [hour, minute] = slot.split(":").map(Number)
-  const combined = new Date(date.getTime())
-  combined.setHours(hour, minute, 0, 0)
+  // Create a new date in the local timezone with explicit year, month, day, hour, minute
+  // This prevents timezone offset issues that occur with setHours
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const day = date.getDate()
+  const combined = new Date(year, month, day, hour, minute, 0, 0)
   return combined
 }
 

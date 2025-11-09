@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createSsrClient } from "@/lib/supabase/server"
+import { sendBookingConfirmationEmail } from "@/lib/email/booking-confirmation"
 
 export async function GET(request: Request) {
   try {
@@ -197,7 +198,43 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Unable to create booking. Please try again later." }, { status: 500 })
       }
 
+      // Attempt to send confirmation email (non-blocking)
+      try {
+        await sendBookingConfirmationEmail({
+          contactName,
+          contactEmail,
+          contactPhone,
+          preferredLocation,
+          bookingDateTime,
+          vehicleMake: vehicle.make || "Vehicle",
+          vehicleModel: vehicle.model || "Model",
+          vehicleYear: vehicle.year || new Date().getFullYear(),
+          vehicleTrim: vehicle.trim || "Trim",
+        })
+      } catch (emailError) {
+        console.error("Failed to send booking confirmation email:", emailError)
+        // Don't fail the booking if email fails - just log it
+      }
+
       return NextResponse.json({ booking: fallbackBooking })
+    }
+
+    // Attempt to send confirmation email (non-blocking)
+    try {
+      await sendBookingConfirmationEmail({
+        contactName,
+        contactEmail,
+        contactPhone,
+        preferredLocation,
+        bookingDateTime,
+        vehicleMake: vehicle.make || "Vehicle",
+        vehicleModel: vehicle.model || "Model",
+        vehicleYear: vehicle.year || new Date().getFullYear(),
+        vehicleTrim: vehicle.trim || "Trim",
+      })
+    } catch (emailError) {
+      console.error("Failed to send booking confirmation email:", emailError)
+      // Don't fail the booking if email fails - just log it
     }
 
     return NextResponse.json({ booking })
