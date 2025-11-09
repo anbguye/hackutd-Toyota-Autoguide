@@ -35,11 +35,36 @@ function buildSystemPrompt(preferences: Awaited<ReturnType<typeof getUserPrefere
   systemPrompt += "Respond to the user in Markdown format. Use formatting like **bold**, *italic*, lists, and other Markdown features to make your responses clear and well-structured.\n\n";
 
   if (preferences) {
-    systemPrompt += "User Preferences:\n";
+    // Format preferences for better readability (convert cents to dollars for display)
+    const budgetMin = preferences.budget_min ? preferences.budget_min / 100 : null;
+    const budgetMax = preferences.budget_max ? preferences.budget_max / 100 : null;
+    const carTypes = preferences.car_types && preferences.car_types.length > 0 
+      ? preferences.car_types.join(", ") 
+      : "any type";
+    const useCase = preferences.use_case || "not specified";
+    const seats = preferences.seats || "not specified";
+    const mpgPriority = preferences.mpg_priority || "not specified";
+    
+    systemPrompt += "=== USER PREFERENCES FROM QUIZ ===\n";
+    systemPrompt += `Budget Range: $${budgetMin || 0} - $${budgetMax || 0}\n`;
+    systemPrompt += `Preferred Vehicle Type: ${carTypes}\n`;
+    systemPrompt += `Seating Needed: ${seats} seats\n`;
+    systemPrompt += `Primary Use Case: ${useCase}\n`;
+    systemPrompt += `MPG Priority: ${mpgPriority}\n`;
+    systemPrompt += "\n";
+    systemPrompt += "Raw JSON (for API calls - budget values are in cents):\n";
     systemPrompt += JSON.stringify(preferences, null, 2);
     systemPrompt += "\n\n";
     systemPrompt +=
-      "All budget values are in cents. Use these preferences as defaults when searching for cars. When searching, prefer filtering by msrp price, but fallback to invoice if msrp is unavailable.\n\n";
+      "CRITICAL INSTRUCTIONS:\n";
+    systemPrompt +=
+      "- When talking to the user, ALWAYS use dollar amounts (e.g., $35,000), NEVER mention cents or 'converted from cents'\n";
+    systemPrompt +=
+      "- When calling searchToyotaTrims, use the budget_min and budget_max values from the Raw JSON (they are in cents)\n";
+    systemPrompt +=
+      "- Use these preferences as defaults when searching for cars. When searching, prefer filtering by msrp price, but fallback to invoice if msrp is unavailable.\n";
+    systemPrompt +=
+      "- Reference these preferences naturally in your responses - mention the user's budget range, preferred vehicle type, use case, etc.\n\n";
     systemPrompt +=
       "IMPORTANT WORKFLOW FOR SHOWING CARS:\n";
     systemPrompt +=
